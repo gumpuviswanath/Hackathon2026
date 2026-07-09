@@ -12,3 +12,9 @@ jobs:
       env:
         OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
         GITHUB_TOKEN: ${{ secrets.GTHUB_TOKEN }}
+    
+    - name: Send PR review to Kafka
+      run: |
+        echo '{"pr_number":"${{ github.event.pull_request.number }}","title":"${{ github.event.pull_request.title }}","review":"Automated                            review started"}' \
+        | docker exec -i $(docker ps -q -f ancestor=wurstmeister/kafka:2.13-2.8.1) \
+          kafka-console-producer.sh --broker-list localhost:9092 --topic pr-reviews
