@@ -27,12 +27,17 @@ jobs:
 
       - name: Create Kafka topic
         run: |
-          docker exec $(docker ps -q -f ancestor=confluentinc/cp-kafka:7.6.1) \
+          docker exec kafka \
             kafka-topics --create --topic pr-reviews \
-            --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+            --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 || true
 
       - name: Publish PR review event to Kafka
         run: |
           echo '{"pr_number":"${{ github.event.pull_request.number }}","title":"${{ github.event.pull_request.title }}","action":"${{ github.event.action }}"}' \
-          | docker exec -i $(docker ps -q -f ancestor=confluentinc/cp-kafka:7.6.1) \
+          | docker exec -i kafka \
             kafka-console-producer --broker-list localhost:9092 --topic pr-reviews
+
+      - name: Consume PR review event from Kafka
+        run: |
+          docker exec kafka \
+            kafka-console-consumer --bootstrap-server localhost:9092 --topic pr-reviews --from-beginning --timeout-ms 5000 --max-messages 10
