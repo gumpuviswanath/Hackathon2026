@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Onboarding — Meridian Trust</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="bank-banner">
+    <div class="bank-banner-utility">
+      <div class="bank-banner-utility-inner">
+        <div class="bank-banner-utility-left">
+          <span>Business Internet Banking</span>
+          <span class="badge">New</span>
+          <span>Meridian Trust Go</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:1.2rem;">
+          <a class="bank-banner-help" href="#">💬 Need help?</a>
+          <a class="bank-banner-logoff" href="/">Log off</a>
+        </div>
+      </div>
+    </div>
+    <div class="bank-banner-brand">
+      <div class="bank-banner-brand-inner">
+        <span class="bank-banner-mark">MT</span>
+        <div class="bank-banner-text">
+          <span class="bank-banner-name">Meridian Trust Bank</span>
+          <span class="bank-banner-tag">Customer Onboarding Portal</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="portal-shell">
+    <!-- ---------------- Left rail ---------------- -->
+    <aside class="portal-aside">
+      <h2>Let's get your account on the record.</h2>
+      <p>Fill in your details once. Meridian Trust issues a permanent customer ID the moment you submit — this ID is how we'll identify your accounts going forward.</p>
+
+      <ol class="steps">
+        <li><span class="n">1</span> Enter your personal and contact details.</li>
+        <li><span class="n">2</span> Choose the account type you'd like to open.</li>
+        <li><span class="n">3</span> Submit — your customer ID is generated instantly.</li>
+      </ol>
+
+      <p class="assurance">Your information is stored in Meridian Trust's customer ledger and used only to service your account. This is a demonstration portal.</p>
+    </aside>
+
+    <!-- ---------------- Right: form / confirmation ---------------- -->
+    <main class="portal-main">
+
+      <!-- FORM CARD -->
+      <section class="form-card" id="formCard">
+        <div class="eyebrow">New Customer Registration</div>
+        <h1>Tell us about you</h1>
+        <p class="lede">All fields are required. We'll use this to open your record and generate your customer ID.</p>
+
+        <div class="form-banner" id="formBanner"></div>
+
+        <form id="customerForm" novalidate>
+          <div class="field-grid">
+
+            <div class="field" data-field="fullName">
+              <label for="fullName">Full legal name</label>
+              <input type="text" id="fullName" name="fullName" autocomplete="name" placeholder="Asha Rao" required />
+              <div class="field-error-msg">Enter your full name.</div>
+            </div>
+
+            <div class="field" data-field="phoneNumber">
+              <label for="phoneNumber">Phone number</label>
+              <input type="tel" id="phoneNumber" name="phoneNumber" autocomplete="tel" placeholder="+91 98765 43210" required />
+              <div class="field-error-msg">Enter a valid phone number.</div>
+            </div>
+
+            <div class="field" data-field="email">
+              <label for="email">Email address</label>
+              <input type="email" id="email" name="email" autocomplete="email" placeholder="asha.rao@email.com" required />
+              <div class="field-error-msg">Enter a valid email address.</div>
+            </div>
+
+            <div class="field" data-field="dateOfBirth">
+              <label for="dateOfBirth">Date of birth</label>
+              <input type="date" id="dateOfBirth" name="dateOfBirth" required />
+              <div class="field-error-msg">Enter a valid date of birth (18+).</div>
+            </div>
+
+            <div class="field" data-field="governmentId">
+              <label for="governmentId">Government ID number
+                <span class="hint">Aadhaar / Passport / National ID</span>
+              </label>
+              <input type="text" id="governmentId" name="governmentId" placeholder="XXXX-XXXX-XXXX" required />
+              <div class="field-error-msg">Enter your government ID number.</div>
+            </div>
+
+            <div class="field" data-field="accountType">
+              <label for="accountType">Account type</label>
+              <select id="accountType" name="accountType" required>
+                <option value="" disabled selected>Select account type</option>
+                <option value="Savings">Savings</option>
+                <option value="Current">Current</option>
+                <option value="Salary">Salary</option>
+              </select>
+              <div class="field-error-msg">Choose an account type.</div>
+            </div>
+
+            <div class="field" data-field="address">
+              <label for="address">Residential address</label>
+              <textarea id="address" name="address" rows="2" placeholder="Flat No., Street, City, State, PIN" required></textarea>
+              <div class="field-error-msg">Enter your residential address.</div>
+            </div>
+
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-submit" id="submitBtn">Submit &amp; generate customer ID</button>
+            <span class="form-note">Takes less than a minute.</span>
+          </div>
+        </form>
+      </section>
+
+      <!-- CONFIRMATION CARD (hidden until submit succeeds) -->
+      <section class="stamp-card" id="stampCard" hidden>
+        <div class="eyebrow">Registration Complete</div>
+        <h1>Your account is on the record.</h1>
+
+        <div class="ledger-card">
+          <div class="ledger-top">
+            <div>
+              <div class="label">Customer ID</div>
+              <div class="customer-id" id="outCustomerId">—</div>
+            </div>
+            <div class="seal">
+              <div class="seal-inner">MERIDIAN<br />TRUST</div>
+            </div>
+          </div>
+
+          <dl class="ledger-rows">
+            <div class="ledger-row">
+              <dt>Account holder</dt>
+              <dd id="outFullName">—</dd>
+            </div>
+            <div class="ledger-row">
+              <dt>Account type</dt>
+              <dd id="outAccountType">—</dd>
+            </div>
+            <div class="ledger-row">
+              <dt>Issued</dt>
+              <dd id="outCreatedAt">—</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="stamp-actions">
+          <button class="btn-secondary" id="copyIdBtn" type="button">Copy customer ID</button>
+          <a class="btn-secondary" href="/portal">Register another customer</a>
+          <a class="btn-secondary" href="/records">View customer ledger</a>
+          <span class="copy-toast" id="copyToast">Copied</span>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/js/portal.js"></script>
+</body>
+</html>

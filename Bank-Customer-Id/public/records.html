@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Ledger — Meridian Trust</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="bank-banner">
+    <div class="bank-banner-utility">
+      <div class="bank-banner-utility-inner">
+        <div class="bank-banner-utility-left">
+          <span>Business Internet Banking</span>
+          <span class="badge">New</span>
+          <span>Meridian Trust Go</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:1.2rem;">
+          <a class="bank-banner-help" href="#">💬 Need help?</a>
+          <a class="bank-banner-logoff" href="/">Log off</a>
+        </div>
+      </div>
+    </div>
+    <div class="bank-banner-brand">
+      <div class="bank-banner-brand-inner">
+        <span class="bank-banner-mark">MT</span>
+        <div class="bank-banner-text">
+          <span class="bank-banner-name">Meridian Trust Bank</span>
+          <span class="bank-banner-tag">Customer Onboarding Portal</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="records-shell">
+    <div class="records-header">
+      <div>
+        <a class="back-link" href="/portal">&larr; Back to portal</a>
+        <h1>Customer ledger</h1>
+      </div>
+      <span class="mono form-note">Internal / demo view &middot; reads directly from bank.db</span>
+    </div>
+
+    <div class="records-table-wrap">
+      <table class="records" id="recordsTable">
+        <thead>
+          <tr>
+            <th>Customer ID</th>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Account type</th>
+            <th>Issued</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody">
+          <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    fetch('/api/customers')
+      .then((r) => r.json())
+      .then((data) => {
+        const tbody = document.getElementById('recordsBody');
+        if (!data.ok || !data.customers.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No customers registered yet. Submit the form on the portal page to add the first record.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.customers.map((c) => `
+          <tr>
+            <td class="id">${escapeHtml(c.customerId)}</td>
+            <td>${escapeHtml(c.fullName)}</td>
+            <td>${escapeHtml(c.phoneNumber)}</td>
+            <td>${escapeHtml(c.email)}</td>
+            <td>${escapeHtml(c.accountType)}</td>
+            <td>${escapeHtml(c.createdAt)}</td>
+          </tr>
+        `).join('');
+      })
+      .catch(() => {
+        document.getElementById('recordsBody').innerHTML =
+          '<tr><td colspan="6" class="empty-state">Could not load records from the server.</td></tr>';
+      });
+  </script>
+</body>
+</html>

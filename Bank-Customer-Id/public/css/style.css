@@ -1,0 +1,786 @@
+/* ===========================================================
+   Meridian Trust — design tokens
+   Palette: ink navy + warm paper + brass + ledger emerald
+   Type: Fraunces (display serif) / Inter (body) / IBM Plex Mono (ledger data)
+   Signature: the customer ID "ledger stamp" reveal
+   =========================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root {
+  --ink: #0d1f2b;
+  --ink-soft: #142f3d;
+  --ink-line: rgba(246, 243, 236, 0.16);
+
+  --paper: #f5f1e6;
+  --paper-panel: #fbf9f3;
+  --line: #ddd2b6;
+
+  --brass: #b08d57;
+  --brass-bright: #cba869;
+  --emerald: #1f6f5c;
+  --emerald-deep: #164f42;
+  --orange: #e8621c;
+  --orange-deep: #c94f12;
+  --bank-black: #171a1d;
+  --bank-red: #cc2131;
+  --bank-red-deep: #a51825;
+  --bank-panel: #f4f4f5;
+
+  --text-ink: #f6f3ec;
+  --text-dark: #1c1a15;
+  --text-muted: #6b6455;
+
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+  --radius: 3px;
+  --shadow-card: 0 20px 60px -30px rgba(13, 31, 43, 0.5);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--text-dark);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.mono { font-family: var(--mono); }
+
+/* ---------------------------------------------------------
+   Top bank banner (portal + records pages)
+   Two-tier header: slim black utility strip + white brand bar,
+   styled after conventional business-banking portals.
+   --------------------------------------------------------- */
+
+.bank-banner-utility {
+  background: var(--bank-black);
+  color: #d7d7d9;
+  font-size: 0.78rem;
+}
+
+.bank-banner-utility-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.55rem clamp(1.2rem, 4vw, 2.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.bank-banner-utility-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.bank-banner-utility-left .badge {
+  background: var(--bank-red);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 2px;
+}
+
+.bank-banner-help {
+  color: #d7d7d9;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bank-banner-logoff {
+  border: 1px solid #55585c;
+  color: #f4f4f5;
+  background: transparent;
+  padding: 0.3rem 0.85rem;
+  border-radius: 2px;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.bank-banner-brand {
+  background: #ffffff;
+  border-bottom: 3px solid var(--bank-red);
+}
+
+.bank-banner-brand-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem clamp(1.2rem, 4vw, 2.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+}
+
+.bank-banner-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bank-red);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.bank-banner-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.bank-banner-name {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.35rem;
+  letter-spacing: 0.01em;
+  color: var(--bank-black);
+}
+
+.bank-banner-tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------
+   Landing / hero page
+   --------------------------------------------------------- */
+
+.hero {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 20% -10%, rgba(203, 168, 105, 0.12), transparent 55%),
+    var(--ink);
+  color: var(--text-ink);
+  display: flex;
+  flex-direction: column;
+  padding: 2.5rem clamp(1.5rem, 6vw, 6rem);
+}
+
+.hero-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+.mark-glyph {
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--brass-bright);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--brass-bright);
+}
+
+.hero-nav .est {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: rgba(246, 243, 236, 0.55);
+  text-transform: uppercase;
+}
+
+.hero-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 760px;
+  padding: 3rem 0;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  margin-bottom: 1.25rem;
+}
+
+.hero-body h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(2.4rem, 5.4vw, 4.2rem);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  margin: 0 0 1.4rem;
+}
+
+.hero-body h1 em {
+  font-style: italic;
+  color: var(--brass-bright);
+}
+
+.hero-body p {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: rgba(246, 243, 236, 0.72);
+  max-width: 46ch;
+  margin: 0 0 2.4rem;
+}
+
+.btn-portal {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--brass-bright);
+  color: var(--ink);
+  border: none;
+  padding: 1rem 1.6rem;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.98rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 10px 30px -12px rgba(203, 168, 105, 0.55);
+}
+
+.btn-portal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px -12px rgba(203, 168, 105, 0.65);
+}
+
+.btn-portal svg { transition: transform 0.18s ease; }
+.btn-portal:hover svg { transform: translateX(3px); }
+
+.hero-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 1px solid var(--ink-line);
+  padding-top: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: rgba(246, 243, 236, 0.45);
+  letter-spacing: 0.04em;
+}
+
+.hero-footer .ledger-no::before {
+  content: '№ ';
+  color: var(--brass-bright);
+}
+
+/* ---------------------------------------------------------
+   Portal / form page
+   --------------------------------------------------------- */
+
+.portal-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(260px, 34%) 1fr;
+}
+
+@media (max-width: 860px) {
+  .portal-shell { grid-template-columns: 1fr; }
+}
+
+.portal-aside {
+  background: var(--ink);
+  color: var(--text-ink);
+  padding: clamp(2rem, 4vw, 3.2rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.portal-aside .mark { margin-bottom: 3rem; color: var(--text-ink); }
+
+.portal-aside h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.7rem;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+}
+
+.portal-aside > p {
+  color: rgba(246, 243, 236, 0.68);
+  line-height: 1.6;
+  margin: 0 0 2.5rem;
+  font-size: 0.95rem;
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.steps li {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: rgba(246, 243, 236, 0.85);
+}
+
+.steps .n {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--brass-bright);
+  border: 1px solid var(--ink-line);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.portal-aside .assurance {
+  margin-top: auto;
+  padding-top: 2rem;
+  border-top: 1px solid var(--ink-line);
+  font-size: 0.78rem;
+  color: rgba(246, 243, 236, 0.5);
+  line-height: 1.6;
+}
+
+.portal-main {
+  background: var(--paper);
+  padding: clamp(2rem, 4vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.form-card {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+#customerForm {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.form-card > .eyebrow { color: var(--emerald-deep); }
+
+.form-card h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(1.7rem, 3vw, 2.1rem);
+  margin: 0 0 0.5rem;
+}
+
+.form-card > p.lede {
+  color: var(--text-muted);
+  margin: 0 0 2.2rem;
+  line-height: 1.6;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.3rem 1.2rem;
+}
+
+.field-grid .full { grid-column: 1 / -1; }
+
+@media (max-width: 560px) {
+  .field-grid { grid-template-columns: 1fr; }
+}
+
+.field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+  color: var(--text-dark);
+}
+
+.field .hint {
+  display: block;
+  font-weight: 400;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper-panel);
+  border-radius: var(--radius);
+  padding: 0.72rem 0.85rem;
+  font-family: var(--sans);
+  font-size: 0.94rem;
+  color: var(--text-dark);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 3px rgba(31, 111, 92, 0.12);
+}
+
+.field textarea { resize: vertical; min-height: 4.2rem; }
+
+.field.error input,
+.field.error select,
+.field.error textarea {
+  border-color: #b3413a;
+}
+
+.field-error-msg {
+  color: #b3413a;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+  display: none;
+}
+
+.field.error .field-error-msg { display: block; }
+
+.form-actions {
+  margin-top: auto;
+  padding-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  text-align: center;
+}
+
+.btn-submit {
+  background: var(--bank-red);
+  color: #fff;
+  border: none;
+  padding: 0.95rem 2.4rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 10px 26px -12px rgba(204, 33, 49, 0.55);
+}
+
+.btn-submit:hover { background: var(--bank-red-deep); transform: translateY(-1px); }
+.btn-submit:disabled { opacity: 0.6; cursor: wait; transform: none; }
+
+.form-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.form-banner {
+  border: 1px solid #b3413a;
+  background: rgba(179, 65, 58, 0.06);
+  color: #8f3229;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  margin-bottom: 1.6rem;
+  display: none;
+  line-height: 1.5;
+}
+
+.form-banner.show { display: block; }
+.form-banner ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+
+/* ---------------------------------------------------------
+   Confirmation — the ledger stamp signature
+   --------------------------------------------------------- */
+
+.stamp-card {
+  max-width: 640px;
+  width: 100%;
+  animation: rise 0.5s ease both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.stamp-card .eyebrow { color: var(--emerald-deep); }
+
+.stamp-card h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  margin: 0 0 1.8rem;
+}
+
+.ledger-card {
+  position: relative;
+  background: var(--paper-panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2rem clamp(1.4rem, 4vw, 2.4rem);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.ledger-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid transparent;
+  background:
+    repeating-linear-gradient(90deg, var(--paper-panel) 0 8px, transparent 8px 16px) bottom / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--paper-panel) 0 8px, transparent 8px 16px) top / 100% 1px no-repeat;
+  pointer-events: none;
+}
+
+.ledger-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 1.4rem;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px dashed var(--line);
+}
+
+.ledger-top .label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.customer-id {
+  font-family: var(--mono);
+  font-size: clamp(1.5rem, 4vw, 2.05rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+}
+
+.seal {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1.5px solid var(--emerald);
+  color: var(--emerald);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform: rotate(-8deg);
+}
+
+.seal-inner {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--emerald);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.ledger-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .ledger-rows { grid-template-columns: 1fr; }
+}
+
+.ledger-row dt {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.ledger-row dd {
+  margin: 0;
+  font-size: 0.94rem;
+  color: var(--text-dark);
+  font-weight: 500;
+}
+
+.stamp-actions {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dark);
+  padding: 0.75rem 1.3rem;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover { border-color: var(--ink); }
+
+.copy-toast {
+  font-size: 0.78rem;
+  color: var(--emerald-deep);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.copy-toast.show { opacity: 1; }
+
+/* ---------------------------------------------------------
+   Records / internal ledger view
+   --------------------------------------------------------- */
+
+.records-shell {
+  min-height: 100vh;
+  background: var(--paper);
+  padding: clamp(1.6rem, 4vw, 3rem);
+}
+
+.records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 1.8rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.records-header h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.7rem;
+  margin: 0.4rem 0 0;
+}
+
+.records-table-wrap {
+  background: var(--paper-panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+  box-shadow: var(--shadow-card);
+}
+
+table.records {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+table.records th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+table.records td {
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dark);
+}
+
+table.records tr:last-child td { border-bottom: none; }
+
+table.records td.id { font-family: var(--mono); color: var(--emerald-deep); font-weight: 600; }
+
+.empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.back-link {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.back-link:hover { color: var(--text-dark); }
