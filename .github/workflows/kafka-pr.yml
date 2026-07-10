@@ -1,15 +1,11 @@
-name: PR Agent with Kafka
+name: Kafka PR Reviews
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-
-permissions:
-  pull-requests: write
-  contents: read
+    types: [opened, synchronize, reopened, review_requested, review]
 
 jobs:
-  pr-agent:
+  kafka-pr-job:
     runs-on: ubuntu-latest
 
     services:
@@ -34,7 +30,17 @@ jobs:
           curl -sL https://archive.apache.org/dist/kafka/3.6.1/kafka_2.13-3.6.1.tgz | tar xz
           mv kafka_2.13-3.6.1 kafka
 
+      - name: Create Kafka topic
+        run: |
+          ./kafka/bin/kafka-topics.sh --create --topic pr-reviews \
+            --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 || true
+
       - name: Publish PR review event to Kafka
         run: |
-          echo '{"pr_number":"${{ github.event.pull_request.number }}","title":"${{ github.event.pull_request.title }}","review":"Automated review started"}' \
+          echo '{"pr_number":"${{ github.event.pull_request.number }}","title":"${{ github.event.pull_request.title }}","action":"${{ github.event.action }}"}' \
           | ./kafka/bin/kafka-console-producer.sh --broker-list localhost:9092 --topic pr-reviews
+
+      - name: Consume PR review event from Kafka
+        run: |
+          ./kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+            --topic pr-reviews --from-beginning --timeout-ms 5000 --max-messages 10
