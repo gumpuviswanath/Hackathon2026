@@ -1,0 +1,45 @@
+name: AI Memory Agent with pgvector
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  memory-agent:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: ankane/pgvector:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: memorydb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install psycopg2-binary sentence-transformers
+
+      - name: Initialize pgvector table
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d memorydb -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d memorydb -c "CREATE TABLE IF NOT EXISTS memory (id SERIAL PRIMARY KEY, snippet TEXT, embedding vector(384));"
+
+      - name: Run memory agent
+        run: |
+          python scripts/memory_agent_pg.py
