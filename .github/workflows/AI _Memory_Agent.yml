@@ -29,17 +29,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
-      - name: Install dependencies
-        run: |
-          pip install psycopg2-binary sentence-transformers
+      # Your steps that insert PR data into Postgres go here
 
-      - name: Initialize pgvector table
+      - name: Export PR data to JSON
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d memorydb -c "CREATE EXTENSION IF NOT EXISTS vector;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d memorydb -c "CREATE TABLE IF NOT EXISTS memory (id SERIAL PRIMARY KEY, snippet TEXT, embedding vector(384));"
+          psql -h localhost -U postgres -d memorydb -c \
+          "COPY (SELECT * FROM your_table) TO STDOUT WITH JSON" > pr_data.json
+        env:
+          PGPASSWORD: postgres
 
-      - name: Run memory agent
-        run: |
-          python scripts/memory_agent_pg.py
+
+      - name: Upload dump as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memorydb-dump
+          path: memorydb.sql
