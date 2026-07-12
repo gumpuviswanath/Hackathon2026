@@ -31,19 +31,39 @@ jobs:
         with:
           python-version: '3.x'
 
-      # Your steps that insert PR data into Postgres go here
+      # Step 1: Create table if not exists
+      - name: Create PR data table
+        run: |
+          psql -h localhost -U postgres -d memorydb -c "
+          CREATE TABLE IF NOT EXISTS pr_data (
+            id SERIAL PRIMARY KEY,
+            pr_number INT,
+            title TEXT,
+            body TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );"
+        env:
+          PGPASSWORD: postgres
 
+      # Step 2: Insert PR metadata into table
+      - name: Insert PR metadata
+        run: |
+          psql -h localhost -U postgres -d memorydb -c \
+          "INSERT INTO pr_data (pr_number, title, body) VALUES (${{ github.event.pull_request.number }}, $${{ github.event.pull_request.title }}$$, $${{ github.event.pull_request.body }}$$);"
+        env:
+          PGPASSWORD: postgres
+
+      # Step 3: Export table data to JSON
       - name: Export PR data to JSON
         run: |
-         psql -h localhost -U postgres -d memorydb -c \
-         "COPY (SELECT json_agg(t) FROM (SELECT * FROM your_table) t) TO STDOUT" > pr_data.json
+          psql -h localhost -U postgres -d memorydb -c \
+          "COPY (SELECT json_agg(t) FROM (SELECT * FROM pr_data) t) TO STDOUT" > pr_data.json
         env:
-         PGPASSWORD: postgres
+          PGPASSWORD: postgres
 
-
-
-      - name: Upload dump as artifact
+      # Step 4: Upload JSON artifact
+      - name: Upload PR data artifact
         uses: actions/upload-artifact@v4
         with:
-          name: memorydb-dump
-          path: memorydb.sql
+          name: pr-data
+          path: pr_data.json
