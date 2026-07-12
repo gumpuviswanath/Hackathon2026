@@ -35,10 +35,11 @@ jobs:
 
       - name: Export PR data to JSON
         run: |
-          psql -h localhost -U postgres -d memorydb -c \
-          "COPY (SELECT * FROM your_table) TO STDOUT WITH JSON" > pr_data.json
+         psql -h localhost -U postgres -d memorydb -c \
+         "COPY (SELECT json_agg(t) FROM (SELECT * FROM your_table) t) TO STDOUT" > pr_data.json
         env:
-          PGPASSWORD: postgres
+         PGPASSWORD: postgres
+
 
 
       - name: Upload dump as artifact
