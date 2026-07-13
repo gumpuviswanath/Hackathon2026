@@ -29,17 +29,45 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
-      - name: Install dependencies
+      # Step 1: Create table if not exists
+      - name: Create PR data table
         run: |
-          pip install psycopg2-binary sentence-transformers
+          psql -h localhost -U postgres -d memorydb -c "
+          CREATE TABLE IF NOT EXISTS pr_data (
+            id SERIAL PRIMARY KEY,
+            pr_number INT,
+            title TEXT,
+            body TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );"
+        env:
+          PGPASSWORD: postgres
 
-      - name: Initialize pgvector table
+      # Step 2: Insert PR metadata into table
+      - name: Insert PR metadata
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d memorydb -c "CREATE EXTENSION IF NOT EXISTS vector;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d memorydb -c "CREATE TABLE IF NOT EXISTS memory (id SERIAL PRIMARY KEY, snippet TEXT, embedding vector(384));"
+          psql -h localhost -U postgres -d memorydb -c \
+          "INSERT INTO pr_data (pr_number, title, body) VALUES (
+            ${{ github.event.pull_request.number }},
+            '${{ github.event.pull_request.title }}',
+            '${{ github.event.pull_request.body }}'
+          );"
+        env:
+          PGPASSWORD: postgres
 
-      - name: Run memory agent
+      # Step 3: Export table data to JSON
+      - name: Export PR data to JSON
         run: |
-          python scripts/memory_agent_pg.py
+          psql -h localhost -U postgres -d memorydb -c \
+          "COPY (SELECT json_agg(t) FROM (SELECT * FROM pr_data) t) TO STDOUT" > pr_data.json
+        env:
+          PGPASSWORD: postgres
+
+      # Step 4: Upload JSON artifact
+      - name: Upload PR data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-data
+          path: pr_data.json
