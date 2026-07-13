@@ -1,7 +1,7 @@
 {
-  "name": "customer-onboarding-portal",
+  "name": "beyond-banking-portal",
   "version": "1.0.0",
-  "description": "Customer Onboarding Portal - React SPA with Material-UI",
+  "description": "Beyond Banking - Customer Onboarding Portal (React SPA with Material-UI)",
   "main": "index.jsx",
   "type": "module",
   "scripts": {

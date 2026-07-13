@@ -1,4 +1,4 @@
-# Hackathon 2026: Customer Onboarding Platform - Setup Guide
+# Beyond Banking: Customer Onboarding Platform - Setup Guide
 
 ## 📋 Prerequisites
 

@@ -1,4 +1,4 @@
-# 🏦 Hackathon 2026: Customer Onboarding Platform
+# 🏦 Beyond Banking: Customer Onboarding Platform
 
 **A complete microservices-based customer onboarding system with React portal, Spring Boot backends, and embedded H2 persistence.**
 

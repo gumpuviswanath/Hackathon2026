@@ -1,4 +1,4 @@
-# 🚀 Quick Start Guide - Hackathon 2026 Portal
+# 🚀 Quick Start Guide - Beyond Banking Portal
 
 ## ⚡ 5-Minute Setup
 
@@ -182,8 +182,11 @@ curl http://localhost:3003/product/all
 ```bash
 # Docker: check a service's logs (each service owns its own embedded H2 file DB)
 docker-compose logs customer-service
-# Or restart
-docker-compose down -v && docker-compose up --build
+# Restart WITHOUT losing data:
+docker-compose down && docker-compose up --build
+
+# Only if you actually want to wipe all data and start clean:
+# docker-compose down -v   (the -v deletes the mounted data volumes — irreversible)
 
 # Local: delete a service's H2 file to start fresh (e.g. Bank-Customer-Id\data\customer-db.mv.db)
 # then re-run .\start-services.ps1 local
