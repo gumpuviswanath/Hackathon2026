@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # Customer Service
+  customer-service:
+    build:
+      context: ./Bank-Customer-Id
+      dockerfile: Dockerfile
+    container_name: customer-service
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Bank-Customer-Id/data:/app/data
+    networks:
+      - hackathon-network
+
+  # KYC Service
+  kyc-service:
+    build:
+      context: ./Bank-KYC-Service
+      dockerfile: Dockerfile
+    container_name: kyc-service
+    ports:
+      - "3001:3001"
+    environment:
+      SERVICES_CUSTOMER_SERVICE_URL: http://customer-service:3000
+    volumes:
+      - ./Bank-KYC-Service/data:/app/data
+    depends_on:
+      - customer-service
+    networks:
+      - hackathon-network
+
+  # Account Service
+  account-service:
+    build:
+      context: ./Bank-Account-Service
+      dockerfile: Dockerfile
+    container_name: account-service
+    ports:
+      - "3002:3002"
+    environment:
+      SERVICES_CUSTOMER_SERVICE_URL: http://customer-service:3000
+    volumes:
+      - ./Bank-Account-Service/data:/app/data
+    depends_on:
+      - customer-service
+    networks:
+      - hackathon-network
+
+  # Product Service
+  product-service:
+    build:
+      context: ./Bank-Product-Service
+      dockerfile: Dockerfile
+    container_name: product-service
+    ports:
+      - "3003:3003"
+    environment:
+      SERVICES_ACCOUNT_SERVICE_URL: http://account-service:3002
+    volumes:
+      - ./Bank-Product-Service/data:/app/data
+    depends_on:
+      - account-service
+    networks:
+      - hackathon-network
+
+  # Portal (React frontend)
+  portal:
+    build:
+      context: ./Customer-Onboarding-Portal
+      dockerfile: Dockerfile
+    container_name: customer-portal
+    ports:
+      - "3005:3005"
+    depends_on:
+      - customer-service
+      - kyc-service
+      - account-service
+      - product-service
+    networks:
+      - hackathon-network
+
+networks:
+  hackathon-network:
+    driver: bridge
