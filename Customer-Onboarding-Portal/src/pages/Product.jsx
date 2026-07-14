@@ -34,6 +34,27 @@ function TabPanel({ children, value, index }) {
   )
 }
 
+const PRODUCT_CATEGORY = {
+  'Loan': 'Loan',
+  'Personal Loan': 'Loan',
+  'Auto Loan': 'Loan',
+  'Student Loan': 'Loan',
+  'Credit Card': 'Credit Card',
+  'Mutual Funds': 'Investment',
+  'Insurance': 'Insurance',
+  'Life Insurance': 'Insurance',
+  'Home/Auto Insurance': 'Insurance'
+}
+
+const categoryOf = (productType) => PRODUCT_CATEGORY[productType] || productType
+
+const PRODUCT_COLORS = {
+  'Loan': '#ff9800',
+  'Credit Card': '#2196f3',
+  'Investment': '#9c27b0',
+  'Insurance': '#4caf50'
+}
+
 export default function Product() {
   const [products, setProducts] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -94,22 +115,11 @@ export default function Product() {
     }
   }
 
-  const getProductColor = (type) => {
-    switch (type) {
-      case 'Loan':
-        return '#ff9800'
-      case 'Credit Card':
-        return '#2196f3'
-      case 'Insurance':
-        return '#4caf50'
-      default:
-        return '#9c27b0'
-    }
-  }
+  const getProductColor = (type) => PRODUCT_COLORS[categoryOf(type)] || '#9c27b0'
 
-  const countProducts = (type) => products.filter(p => p.productType === type).length
+  const countProducts = (category) => products.filter(p => categoryOf(p.productType) === category).length
 
-  const getProductsByType = (type) => products.filter(p => p.productType === type)
+  const getProductsByType = (category) => products.filter(p => categoryOf(p.productType) === category)
 
   return (
     <Box>
@@ -122,7 +132,7 @@ export default function Product() {
 
       {/* Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card sx={{ backgroundColor: '#ff9800' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom sx={{ color: 'white' }}>
@@ -134,7 +144,7 @@ export default function Product() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card sx={{ backgroundColor: '#2196f3' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom sx={{ color: 'white' }}>
@@ -146,7 +156,19 @@ export default function Product() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ backgroundColor: '#9c27b0' }}>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom sx={{ color: 'white' }}>
+                Investment
+              </Typography>
+              <Typography variant="h3" sx={{ fontWeight: 'bold', color: 'white' }}>
+                {countProducts('Investment')}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
           <Card sx={{ backgroundColor: '#4caf50' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom sx={{ color: 'white' }}>
@@ -158,8 +180,8 @@ export default function Product() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: '#9c27b0' }}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ backgroundColor: '#607d8b' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom sx={{ color: 'white' }}>
                 Total Products
@@ -201,7 +223,7 @@ export default function Product() {
                 </TableRow>
               ) : (
                 accounts.map((account) => (
-                  <TableRow key={account.id} hover>
+                  <TableRow key={account.accountNumber} hover>
                     <TableCell sx={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
                       {account.accountNumber}
                     </TableCell>
@@ -235,23 +257,29 @@ export default function Product() {
         <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
           <Tab label={`Loans (${countProducts('Loan')})`} />
           <Tab label={`Credit Cards (${countProducts('Credit Card')})`} />
+          <Tab label={`Investment (${countProducts('Investment')})`} />
           <Tab label={`Insurance (${countProducts('Insurance')})`} />
         </Tabs>
       </Paper>
 
       {/* Loans Tab */}
       <TabPanel value={tabValue} index={0}>
-        <ProductTable products={getProductsByType('Loan')} />
+        <ProductTable products={getProductsByType('Loan')} getProductColor={getProductColor} />
       </TabPanel>
 
       {/* Credit Cards Tab */}
       <TabPanel value={tabValue} index={1}>
-        <ProductTable products={getProductsByType('Credit Card')} />
+        <ProductTable products={getProductsByType('Credit Card')} getProductColor={getProductColor} />
+      </TabPanel>
+
+      {/* Investment Tab */}
+      <TabPanel value={tabValue} index={2}>
+        <ProductTable products={getProductsByType('Investment')} getProductColor={getProductColor} />
       </TabPanel>
 
       {/* Insurance Tab */}
-      <TabPanel value={tabValue} index={2}>
-        <ProductTable products={getProductsByType('Insurance')} />
+      <TabPanel value={tabValue} index={3}>
+        <ProductTable products={getProductsByType('Insurance')} getProductColor={getProductColor} />
       </TabPanel>
 
       {/* Product Application Dialog */}
@@ -281,9 +309,23 @@ export default function Product() {
                   native: true
                 }}
               >
-                <option value="Loan">Loan</option>
-                <option value="Credit Card">Credit Card</option>
-                <option value="Insurance">Insurance</option>
+                <optgroup label="Lending Products">
+                  <option value="Loan">General Loan</option>
+                  <option value="Personal Loan">Personal Loan</option>
+                  <option value="Auto Loan">Auto Loan</option>
+                  <option value="Student Loan">Student Loan</option>
+                </optgroup>
+                <optgroup label="Payment Services">
+                  <option value="Credit Card">Credit Card</option>
+                </optgroup>
+                <optgroup label="Investment Products">
+                  <option value="Mutual Funds">Mutual Funds</option>
+                </optgroup>
+                <optgroup label="Insurance Products">
+                  <option value="Insurance">General Insurance</option>
+                  <option value="Life Insurance">Life Insurance</option>
+                  <option value="Home/Auto Insurance">Home/Auto Insurance</option>
+                </optgroup>
               </TextField>
             </Box>
           )}
@@ -304,7 +346,7 @@ export default function Product() {
   )
 }
 
-function ProductTable({ products }) {
+function ProductTable({ products, getProductColor }) {
   return (
     <TableContainer component={Paper}>
       <Table>
@@ -330,10 +372,14 @@ function ProductTable({ products }) {
                   {product.accountNumber}
                 </TableCell>
                 <TableCell>
-                  <Chip label={product.productType} color="primary" size="small" />
+                  <Chip
+                    label={product.productType}
+                    size="small"
+                    sx={{ backgroundColor: getProductColor(product.productType), color: 'white' }}
+                  />
                 </TableCell>
                 <TableCell>
-                  <Chip label="Active" color="success" size="small" />
+                  <Chip label={product.status} color="success" size="small" />
                 </TableCell>
                 <TableCell>{new Date(product.createdAt).toLocaleDateString()}</TableCell>
               </TableRow>

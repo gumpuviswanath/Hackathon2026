@@ -21,9 +21,10 @@ public class Customer {
     private String mobile;
     private String email;
     private LocalDate dateOfBirth;
+    private String nationality;
     private String address;
+    private String mailingAddress;
     private String governmentId;
-    private String accountType;
     private String status;
     private String kycStatus;
     private LocalDateTime createdAt;
@@ -37,9 +38,10 @@ public class Customer {
         this.mobile = request.mobile();
         this.email = request.email();
         this.dateOfBirth = request.dateOfBirth();
+        this.nationality = request.nationality();
         this.address = request.address();
+        this.mailingAddress = request.mailingAddress();
         this.governmentId = request.governmentId();
-        this.accountType = request.accountType();
         this.status = "Pending KYC";
         this.kycStatus = "Pending";
         this.createdAt = LocalDateTime.now();
@@ -51,9 +53,10 @@ public class Customer {
     public String getMobile() { return mobile; }
     public String getEmail() { return email; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
+    public String getNationality() { return nationality; }
     public String getAddress() { return address; }
+    public String getMailingAddress() { return mailingAddress; }
     public String getGovernmentId() { return governmentId; }
-    public String getAccountType() { return accountType; }
     public String getStatus() { return status; }
     public String getKycStatus() { return kycStatus; }
     public LocalDateTime getCreatedAt() { return createdAt; }

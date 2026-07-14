@@ -19,6 +19,9 @@ public class KycDetails {
     private String decision;
     private String remarks;
     private String verifiedBy;
+    private String reviewerName;
+    private String documentsVerified;
+    private String onboardingChannel;
     private LocalDateTime createdAt;
 
     protected KycDetails() {
@@ -29,6 +32,9 @@ public class KycDetails {
         this.decision = request.decision();
         this.remarks = request.remarks();
         this.verifiedBy = request.verifiedBy() == null ? "KYC Officer" : request.verifiedBy();
+        this.reviewerName = request.reviewerName();
+        this.documentsVerified = request.documentsVerified();
+        this.onboardingChannel = request.onboardingChannel();
         this.createdAt = LocalDateTime.now();
     }
 
@@ -37,5 +43,8 @@ public class KycDetails {
     public String getDecision() { return decision; }
     public String getRemarks() { return remarks; }
     public String getVerifiedBy() { return verifiedBy; }
+    public String getReviewerName() { return reviewerName; }
+    public String getDocumentsVerified() { return documentsVerified; }
+    public String getOnboardingChannel() { return onboardingChannel; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

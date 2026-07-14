@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface ProductRepository extends JpaRepository<CustomerProduct, Long> {
     List<CustomerProduct> findAllByOrderByIdDesc();
+    void deleteByAccountNumber(String accountNumber);
 }

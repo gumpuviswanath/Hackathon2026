@@ -4,6 +4,9 @@ public record KycRequest(
         String customerId,
         String decision,
         String remarks,
-        String verifiedBy
+        String verifiedBy,
+        String reviewerName,
+        String documentsVerified,
+        String onboardingChannel
 ) {
 }

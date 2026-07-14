@@ -7,8 +7,9 @@ public record CustomerRequest(
         String mobile,
         String email,
         LocalDate dateOfBirth,
+        String nationality,
         String address,
-        String governmentId,
-        String accountType
+        String mailingAddress,
+        String governmentId
 ) {
 }

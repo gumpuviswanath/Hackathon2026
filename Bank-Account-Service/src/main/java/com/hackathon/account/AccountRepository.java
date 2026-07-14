@@ -9,4 +9,5 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     boolean existsByCustomerId(String customerId);
     Optional<Account> findByAccountNumber(String accountNumber);
     List<Account> findAllByOrderByIdDesc();
+    void deleteByAccountNumber(String accountNumber);
 }
