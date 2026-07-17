@@ -25,8 +25,11 @@ DOM_SNAPSHOT_DIR = PLAYWRIGHT_DIR / "target" / "dom-snapshots"
 PAGE_OBJECT_DIR = PLAYWRIGHT_DIR / "src" / "test" / "java" / "pageObjects"
 
 LOCATOR_ERROR_PATTERNS = ["TimeoutError", "waiting for locator", "waiting for selector"]
-MAX_DOM_CHARS = 20000
-MAX_DIFF_CHARS = 8000
+# GitHub Models' free/rate-limited tier caps requests at ~8000 tokens total,
+# which also has to cover Aider's own prompt scaffolding and the two Java
+# files added to the chat - keep these tight.
+MAX_DOM_CHARS = 4000
+MAX_DIFF_CHARS = 1500
 SUMMARY_PATH = REPO_ROOT / "self-heal-summary.md"
 
 
@@ -79,6 +82,9 @@ def dom_snapshot_for(scenario_name):
     if not path.exists():
         return None
     content = path.read_text(errors="ignore")
+    # Inline SVG icon markup (MUI apps embed a lot of it) is pure visual noise
+    # for locator diagnosis but expensive in tokens - strip it before truncating.
+    content = re.sub(r"<svg\b.*?</svg>", "<svg/>", content, flags=re.DOTALL)
     if len(content) > MAX_DOM_CHARS:
         content = content[:MAX_DOM_CHARS] + "\n<!-- truncated -->"
     return content
@@ -177,6 +183,10 @@ def run_aider(prompt_text, files_to_edit):
     cmd = [
         "aider", "--model", model, "--message-file", str(prompt_file),
         "--yes-always", "--no-check-update", "--no-detect-urls",
+        # The repo-map (a survey of all 113 files) is unnecessary for a fix
+        # scoped to two known files, and GitHub Models' free tier has an
+        # ~8000 token request cap that doesn't leave room for it.
+        "--map-tokens", "0",
     ]
     cmd += [str(f) for f in files_to_edit]
 
