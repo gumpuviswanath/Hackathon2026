@@ -96,6 +96,26 @@ jobs:
         working-directory: Playwright-Testing
         run: mvn -B test -Dheadless=true
 
+      # surefire has testFailureIgnore=true (so a broken scenario doesn't abort the
+      # whole run before the report is generated), which means the mvn step above
+      # always exits 0 - without this check the job (and the workflow_run event
+      # self-heal-locators.yml listens for) would always report "success" even
+      # when scenarios genuinely failed.
+      - name: Fail the job if any Cucumber steps failed
+        if: always()
+        working-directory: Playwright-Testing
+        run: |
+          if [ ! -f target/cucumber-reports/cucumber.json ]; then
+            echo "::error::cucumber.json not found - the test run likely failed before producing results."
+            exit 1
+          fi
+          FAILED=$(jq '[.[].elements[]?.steps[]? | select(.result.status == "failed")] | length' target/cucumber-reports/cucumber.json)
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED Cucumber step(s) failed."
+            exit 1
+          fi
+          echo "All Cucumber steps passed."
+
       - name: Show backend/portal logs on failure
         if: failure()
         run: |
@@ -112,6 +132,21 @@ jobs:
           name: extent-report
           path: Playwright-Testing/target/ExtentReport/
           if-no-files-found: warn
+
+      # Consumed by self-heal-locators.yml (triggered via workflow_run on this
+      # workflow's failure) to diagnose broken locators: per-scenario screenshots,
+      # DOM snapshots captured at the moment of failure (Hooks.java), and the
+      # structured pass/fail/error data in cucumber.json.
+      - name: Upload test failure context
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-context
+          path: |
+            Playwright-Testing/target/screenshots/
+            Playwright-Testing/target/dom-snapshots/
+            Playwright-Testing/target/cucumber-reports/cucumber.json
+          if-no-files-found: ignore
 
       - name: Setup Pages
         if: always()
