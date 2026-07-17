@@ -87,6 +87,23 @@ jobs:
         if: steps.jira_key.outputs.found == 'true'
         run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
 
+      # The kafka service container has no health check, so without this wait the
+      # topic-create/produce/consume steps below can race a broker that's still
+      # starting up, silently losing the message (consumer ends up with 0 messages).
+      - name: Wait for Kafka broker to be ready
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          for i in $(seq 1 15); do
+            if ./kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1; then
+              echo "Kafka broker is ready."
+              exit 0
+            fi
+            echo "Kafka not ready yet, retrying ($i/15)..."
+            sleep 3
+          done
+          echo "::error::Kafka broker did not become ready in time."
+          exit 1
+
       - name: Create Kafka topic
         if: steps.jira_key.outputs.found == 'true'
         run: |
@@ -176,23 +193,28 @@ jobs:
           echo "Message consumed from Kafka topic '$KAFKA_TOPIC':"
           cat consumed-message.json
 
+          if ! jq -e . consumed-message.json >/dev/null 2>&1; then
+            echo "::error::No message was consumed from Kafka topic '$KAFKA_TOPIC' - the Jira Agent's publish likely never reached the broker."
+            exit 1
+          fi
+
       - name: "[Memory Agent] Persist Jira event to the database"
         if: steps.jira_key.outputs.found == 'true'
         run: |
-          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
-          JIRA_KEY=$(jq -r '.jira_key' consumed-message.json)
-          SUMMARY=$(jq -r '.summary' consumed-message.json)
-          DESCRIPTION=$(jq -r '.description' consumed-message.json)
-          ACCEPTANCE_CRITERIA=$(jq -r '.acceptance_criteria' consumed-message.json)
+          # Built and escaped in bash rather than relying on psql's client-side
+          # :'var' substitution, which this runner's psql leaves un-interpolated.
+          esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
-          psql "$DATABASE_URL" \
-            -v pr_number="$PR_NUMBER" \
-            -v jira_key="$JIRA_KEY" \
-            -v summary="$SUMMARY" \
-            -v description="$DESCRIPTION" \
-            -v acceptance_criteria="$ACCEPTANCE_CRITERIA" \
-            -c "INSERT INTO jira_pr_details (pr_number, jira_key, summary, description, acceptance_criteria)
-                VALUES ((:'pr_number')::int, :'jira_key', :'summary', :'description', :'acceptance_criteria');"
+          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
+          JIRA_KEY=$(esc "$(jq -r '.jira_key' consumed-message.json)")
+          SUMMARY=$(esc "$(jq -r '.summary' consumed-message.json)")
+          DESCRIPTION=$(esc "$(jq -r '.description' consumed-message.json)")
+          ACCEPTANCE_CRITERIA=$(esc "$(jq -r '.acceptance_criteria' consumed-message.json)")
+
+          psql "$DATABASE_URL" -c "
+            INSERT INTO jira_pr_details (pr_number, jira_key, summary, description, acceptance_criteria)
+            VALUES (${PR_NUMBER}, '${JIRA_KEY}', '${SUMMARY}', '${DESCRIPTION}', '${ACCEPTANCE_CRITERIA}');
+          "
 
       - name: "[Memory Agent] Show what is now stored in the database"
         if: steps.jira_key.outputs.found == 'true'

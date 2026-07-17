@@ -63,6 +63,22 @@ jobs:
       - name: Install PostgreSQL client and jq
         run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
 
+      # The kafka service container has no health check, so without this wait the
+      # topic-create/produce/consume steps below can race a broker that's still
+      # starting up, silently losing the message (consumer ends up with 0 messages).
+      - name: Wait for Kafka broker to be ready
+        run: |
+          for i in $(seq 1 15); do
+            if ./kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1; then
+              echo "Kafka broker is ready."
+              exit 0
+            fi
+            echo "Kafka not ready yet, retrying ($i/15)..."
+            sleep 3
+          done
+          echo "::error::Kafka broker did not become ready in time."
+          exit 1
+
       - name: Create Kafka topic
         run: |
           ./kafka/bin/kafka-topics.sh --create --topic "$KAFKA_TOPIC" \
@@ -125,22 +141,27 @@ jobs:
           echo "Message consumed from Kafka topic '$KAFKA_TOPIC':"
           cat consumed-message.json
 
+          if ! jq -e . consumed-message.json >/dev/null 2>&1; then
+            echo "::error::No message was consumed from Kafka topic '$KAFKA_TOPIC' - the PR Agent's publish likely never reached the broker."
+            exit 1
+          fi
+
       - name: "[Memory Agent] Persist PR event to the database"
         run: |
-          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
-          TITLE=$(jq -r '.title' consumed-message.json)
-          AUTHOR=$(jq -r '.author' consumed-message.json)
-          BODY=$(jq -r '.body' consumed-message.json)
-          DIFF=$(jq -r '.diff' consumed-message.json)
+          # Built and escaped in bash rather than relying on psql's client-side
+          # :'var' substitution, which this runner's psql leaves un-interpolated.
+          esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
-          psql "$DATABASE_URL" \
-            -v pr_number="$PR_NUMBER" \
-            -v title="$TITLE" \
-            -v author="$AUTHOR" \
-            -v body="$BODY" \
-            -v diff_content="$DIFF" \
-            -c "INSERT INTO pr_reviews (pr_number, title, author, body, diff)
-                VALUES ((:'pr_number')::int, :'title', :'author', :'body', :'diff_content');"
+          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
+          TITLE=$(esc "$(jq -r '.title' consumed-message.json)")
+          AUTHOR=$(esc "$(jq -r '.author' consumed-message.json)")
+          BODY=$(esc "$(jq -r '.body' consumed-message.json)")
+          DIFF=$(esc "$(jq -r '.diff' consumed-message.json)")
+
+          psql "$DATABASE_URL" -c "
+            INSERT INTO pr_reviews (pr_number, title, author, body, diff)
+            VALUES (${PR_NUMBER}, '${TITLE}', '${AUTHOR}', '${BODY}', '${DIFF}');
+          "
 
       - name: "[Memory Agent] Show what is now stored in the database"
         run: |
