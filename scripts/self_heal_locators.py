@@ -28,7 +28,7 @@ LOCATOR_ERROR_PATTERNS = ["TimeoutError", "waiting for locator", "waiting for se
 # GitHub Models' free/rate-limited tier caps requests at ~8000 tokens total,
 # which also has to cover Aider's own prompt scaffolding and the two Java
 # files added to the chat - keep these tight.
-MAX_DOM_CHARS = 4000
+MAX_DOM_CHARS = 6000
 MAX_DIFF_CHARS = 1500
 SUMMARY_PATH = REPO_ROOT / "self-heal-summary.md"
 
@@ -82,6 +82,9 @@ def dom_snapshot_for(scenario_name):
     if not path.exists():
         return None
     content = path.read_text(errors="ignore")
+    # <head> (styles/scripts/meta) has zero locator signal but eats into the
+    # truncation budget before <body> is even reached - drop it.
+    content = re.sub(r"<head\b.*?</head>", "", content, flags=re.DOTALL)
     # Inline SVG icon markup (MUI apps embed a lot of it) is pure visual noise
     # for locator diagnosis but expensive in tokens - strip it before truncating.
     content = re.sub(r"<svg\b.*?</svg>", "<svg/>", content, flags=re.DOTALL)
