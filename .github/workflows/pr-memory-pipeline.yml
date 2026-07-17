@@ -140,7 +140,7 @@ jobs:
             -v body="$BODY" \
             -v diff_content="$DIFF" \
             -c "INSERT INTO pr_reviews (pr_number, title, author, body, diff)
-                VALUES (:'pr_number'::int, :'title', :'author', :'body', :'diff_content');"
+                VALUES ((:'pr_number')::int, :'title', :'author', :'body', :'diff_content');"
 
       - name: "[Memory Agent] Show what is now stored in the database"
         run: |
