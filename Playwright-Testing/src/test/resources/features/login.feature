@@ -1,16 +1,13 @@
-#Author: your.email@your.domain.com
-Feature: Login Functionality
+Feature: Login to Beyond Banking Staff Portal
 
   Scenario: Successful login with valid credentials
-    Given User navigate to the login page
-    When User enter username "student"
-    And User enter password "Password123"  
-    And User click on login button
+    Given User navigates to the Beyond Banking login page
+    When User enters username "admin" and password "beyond123"
+    And User clicks on the login button
     Then User should be logged in successfully
-    
-  Scenario: Unsuccessful login with Invalid credentials
-    Given User navigate to the login page
-    When User enter username "student"
-    And User enter password "Password13"  
-    And User click on login button
-    Then User should not be logged in successfully
+
+  Scenario: Unsuccessful login with invalid credentials
+    Given User navigates to the Beyond Banking login page
+    When User enters username "admin" and password "wrongpassword"
+    And User clicks on the login button
+    Then User should see the error message "Incorrect username or password."

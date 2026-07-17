@@ -61,6 +61,15 @@
 			<groupId>com.aventstack</groupId>
 			<artifactId>extentreports</artifactId>
 			<version>5.0.9</version>
+			<exclusions>
+				<!-- Old Lombok (1.18.12) is incompatible with JDK 17's module system
+				     and breaks test-compile (IllegalAccessError on JavacProcessingEnvironment).
+				     Only needed to build extentreports itself, not to consume it. -->
+				<exclusion>
+					<groupId>org.projectlombok</groupId>
+					<artifactId>lombok</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<!-- Extent Reports for Cucumber -->
@@ -68,6 +77,14 @@
 			<groupId>tech.grasshopper</groupId>
 			<artifactId>extentreports-cucumber7-adapter</artifactId>
 			<version>1.8.0</version>
+			<exclusions>
+				<!-- Old Lombok pulled transitively via extent-pdf-report is incompatible
+				     with JDK 17's module system and breaks test-compile. -->
+				<exclusion>
+					<groupId>org.projectlombok</groupId>
+					<artifactId>lombok</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<!-- Cucumber Reporting -->

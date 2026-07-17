@@ -19,7 +19,8 @@ import {
   CircularProgress,
   Alert,
   Typography,
-  Chip
+  Chip,
+  MenuItem
 } from '@mui/material'
 import { kycAPI } from '../api'
 
@@ -31,7 +32,7 @@ function TabPanel({ children, value, index }) {
   )
 }
 
-const KycTable = ({ customers, onApprove, onReject, loading }) => (
+const KycTable = ({ customers, kycDetailsByCustomer, onApprove, onReject, loading }) => (
   <TableContainer component={Paper}>
     <Table>
       <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
@@ -51,45 +52,66 @@ const KycTable = ({ customers, onApprove, onReject, loading }) => (
             </TableCell>
           </TableRow>
         ) : (
-          customers.map((customer) => (
-            <TableRow key={customer.customerId} hover>
-              <TableCell sx={{ fontSize: '0.9rem' }}>{customer.customerId}</TableCell>
-              <TableCell>{customer.name}</TableCell>
-              <TableCell>{customer.mobile}</TableCell>
-              <TableCell>{customer.email}</TableCell>
-              <TableCell align="center">
-                {customer.kycStatus === 'Pending' && (
-                  <>
-                    <Button
-                      size="small"
-                      color="success"
-                      variant="outlined"
-                      onClick={() => onApprove(customer.customerId)}
-                      disabled={loading}
-                      sx={{ mr: 1 }}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="small"
-                      color="error"
-                      variant="outlined"
-                      onClick={() => onReject(customer.customerId)}
-                      disabled={loading}
-                    >
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {customer.kycStatus === 'Approved' && (
-                  <Chip label="✓ Approved" color="success" />
-                )}
-                {customer.kycStatus === 'Rejected' && (
-                  <Chip label="✗ Rejected" color="error" />
-                )}
-              </TableCell>
-            </TableRow>
-          ))
+          customers.map((customer) => {
+            const kyc = kycDetailsByCustomer[customer.customerId]
+            return (
+              <TableRow key={customer.customerId} hover>
+                <TableCell sx={{ fontSize: '0.9rem' }}>{customer.customerId}</TableCell>
+                <TableCell>
+                  {customer.name}
+                  {kyc && (
+                    <Box sx={{ mt: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        Reviewed by: {kyc.reviewerName || '—'} on{' '}
+                        {kyc.createdAt ? new Date(kyc.createdAt).toLocaleDateString() : '—'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        Channel: {kyc.onboardingChannel || '—'} · Documents: {kyc.documentsVerified || '—'}
+                      </Typography>
+                      {kyc.remarks && (
+                        <Typography variant="caption" color="text.secondary" component="div">
+                          Notes: {kyc.remarks}
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                </TableCell>
+                <TableCell>{customer.mobile}</TableCell>
+                <TableCell>{customer.email}</TableCell>
+                <TableCell align="center">
+                  {customer.kycStatus === 'Pending' && (
+                    <>
+                      <Button
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                        onClick={() => onApprove(customer.customerId)}
+                        disabled={loading}
+                        sx={{ mr: 1 }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        onClick={() => onReject(customer.customerId)}
+                        disabled={loading}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  {customer.kycStatus === 'Approved' && (
+                    <Chip label="✓ Approved" color="success" />
+                  )}
+                  {customer.kycStatus === 'Rejected' && (
+                    <Chip label="✗ Rejected" color="error" />
+                  )}
+                </TableCell>
+              </TableRow>
+            )
+          })
         )}
       </TableBody>
     </Table>
@@ -101,11 +123,15 @@ export default function KYC() {
   const [pending, setPending] = useState([])
   const [approved, setApproved] = useState([])
   const [rejected, setRejected] = useState([])
+  const [kycDetailsByCustomer, setKycDetailsByCustomer] = useState({})
   const [loading, setLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [decision, setDecision] = useState('')
   const [remarks, setRemarks] = useState('')
+  const [reviewerName, setReviewerName] = useState('')
+  const [documentsVerified, setDocumentsVerified] = useState('')
+  const [onboardingChannel, setOnboardingChannel] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -116,15 +142,25 @@ export default function KYC() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
+      const [pendingRes, approvedRes, rejectedRes, allDetailsRes] = await Promise.all([
         kycAPI.getPendingCustomers(),
         kycAPI.getApprovedCustomers(),
-        kycAPI.getRejectedCustomers()
+        kycAPI.getRejectedCustomers(),
+        kycAPI.getAllKycDetails()
       ])
 
       setPending(pendingRes.data || [])
       setApproved(approvedRes.data || [])
       setRejected(rejectedRes.data || [])
+
+      // Records are returned newest-first, so the first one seen per customer is the latest
+      const latestByCustomer = {}
+      for (const record of allDetailsRes.data || []) {
+        if (!latestByCustomer[record.customerId]) {
+          latestByCustomer[record.customerId] = record
+        }
+      }
+      setKycDetailsByCustomer(latestByCustomer)
     } catch (error) {
       setError('Failed to load KYC data: ' + error.message)
     } finally {
@@ -133,29 +169,38 @@ export default function KYC() {
   }
 
   const handleApprove = (customerId) => {
+    resetDecisionForm()
     setSelectedCustomer(customerId)
     setDecision('Approved')
     setDialogOpen(true)
   }
 
   const handleReject = (customerId) => {
+    resetDecisionForm()
     setSelectedCustomer(customerId)
     setDecision('Rejected')
     setDialogOpen(true)
   }
 
-  const handleSubmitDecision = async () => {
-    if (!remarks.trim()) {
-      setError('Please provide remarks')
-      return
-    }
+  const resetDecisionForm = () => {
+    setRemarks('')
+    setReviewerName('')
+    setDocumentsVerified('')
+    setOnboardingChannel('')
+  }
 
+  const handleSubmitDecision = async () => {
     try {
       setLoading(true)
-      await kycAPI.submitKycDecision(selectedCustomer, decision, remarks)
+      await kycAPI.submitKycDecision(selectedCustomer, decision, {
+        remarks,
+        reviewerName,
+        documentsVerified,
+        onboardingChannel
+      })
       setSuccess(`Customer ${decision.toLowerCase()} successfully!`)
       setDialogOpen(false)
-      setRemarks('')
+      resetDecisionForm()
       setTimeout(() => {
         loadData()
         setSuccess('')
@@ -192,7 +237,13 @@ export default function KYC() {
             <CircularProgress />
           </Box>
         ) : (
-          <KycTable customers={pending} onApprove={handleApprove} onReject={handleReject} loading={loading} />
+          <KycTable
+            customers={pending}
+            kycDetailsByCustomer={kycDetailsByCustomer}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            loading={loading}
+          />
         )}
       </TabPanel>
 
@@ -203,7 +254,13 @@ export default function KYC() {
             <CircularProgress />
           </Box>
         ) : (
-          <KycTable customers={approved} onApprove={() => {}} onReject={() => {}} loading={false} />
+          <KycTable
+            customers={approved}
+            kycDetailsByCustomer={kycDetailsByCustomer}
+            onApprove={() => {}}
+            onReject={() => {}}
+            loading={false}
+          />
         )}
       </TabPanel>
 
@@ -214,7 +271,13 @@ export default function KYC() {
             <CircularProgress />
           </Box>
         ) : (
-          <KycTable customers={rejected} onApprove={() => {}} onReject={() => {}} loading={false} />
+          <KycTable
+            customers={rejected}
+            kycDetailsByCustomer={kycDetailsByCustomer}
+            onApprove={() => {}}
+            onReject={() => {}}
+            loading={false}
+          />
         )}
       </TabPanel>
 
@@ -226,9 +289,37 @@ export default function KYC() {
         <DialogContent sx={{ pt: 2 }}>
           <TextField
             fullWidth
+            label="Reviewer/Approver Name"
+            value={reviewerName}
+            onChange={(e) => setReviewerName(e.target.value)}
+            placeholder="Jane Smith (User ID: jsmith)"
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            select
+            label="Customer Onboarding Channel"
+            value={onboardingChannel}
+            onChange={(e) => setOnboardingChannel(e.target.value)}
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value="Branch">Branch</MenuItem>
+            <MenuItem value="Online">Online</MenuItem>
+            <MenuItem value="Relationship Manager">Relationship Manager</MenuItem>
+          </TextField>
+          <TextField
+            fullWidth
+            label="Documents Provided/Verified"
+            value={documentsVerified}
+            onChange={(e) => setDocumentsVerified(e.target.value)}
+            placeholder="Passport (verified), Utility bill (verified)"
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
             multiline
             rows={4}
-            label="Remarks"
+            label="Remarks / Comments (optional)"
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
             placeholder="Enter your remarks"

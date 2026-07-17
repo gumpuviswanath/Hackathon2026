@@ -1,50 +1,33 @@
 package pageObjects;
+
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 
 public class LoginPage {
-	
-	// *****************************************************************
-	// *****************************************************************
-	// Author Name : Abhishek Raj
-	// Function : Login Page - UI Element Interactions
-	// Created Date: 22nd March 2025
-	// Modified Date:
-	// Comments: This class provides methods to interact with the login page, 
-	// including entering credentials and performing the login action.
-	// *****************************************************************
-	// *****************************************************************
 
-	private Page page; // Playwright Page instance to interact with the web page
+	private final Page page;
 
-	// Locators for login page elements
-	private String usernameField = "//input[@id='username']"; // Locator for the username input field
-	private String passwordField = "//input[@id='password']"; // Locator for the password input field
-	private String loginButton = "//button[@id='submit']";   // Locator for the login button
-
-	// Constructor to initialize the Playwright Page instance
 	public LoginPage(Page page) {
-	    this.page = page;
+		this.page = page;
 	}
 
-	// Method to navigate to the login page using the provided URL
+	// Navigate to the Beyond Banking Staff Portal login page
 	public void navigateToLoginPage(String url) {
-	    page.navigate(url); // Open the login page URL
-	    page.waitForURL(url); // Wait until the page is fully loaded
+		page.navigate(url);
 	}
 
-	// Method to enter the username into the username field
+	// MUI TextField labeled "Username" (no id/name attribute, associate via label)
 	public void enterUsername(String username) {
-	    page.fill(usernameField, username);
+		page.getByLabel("Username").fill(username);
 	}
 
-	// Method to enter the password into the password field
+	// MUI TextField labeled "Password"
 	public void enterPassword(String password) {
-	    page.fill(passwordField, password);
+		page.getByLabel("Password").fill(password);
 	}
 
-	// Method to click the login button and attempt login
+	// "Sign In" submit button
 	public void clickLogin() {
-	    page.click(loginButton);
+		page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Sign In")).click();
 	}
-
 }

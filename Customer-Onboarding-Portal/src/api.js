@@ -30,11 +30,13 @@ export const kycAPI = {
     axios.get(`${API_KYC}/kyc/approved`),
   getRejectedCustomers: () =>
     axios.get(`${API_KYC}/kyc/rejected`),
-  submitKycDecision: (customerId, decision, remarks) =>
+  getAllKycDetails: () =>
+    axios.get(`${API_KYC}/kyc/all`),
+  submitKycDecision: (customerId, decision, details) =>
     axios.post(`${API_KYC}/kyc`, {
       customerId,
       decision,
-      remarks
+      ...details
     })
 }
 
@@ -44,11 +46,13 @@ export const accountAPI = {
     axios.get(`${API_ACCOUNT}/account/all`),
   getEligibleCustomers: () =>
     axios.get(`${API_ACCOUNT}/account/eligible-customers`),
-  createAccount: (customerId, accountType) =>
+  createAccount: (customerId, details) =>
     axios.post(`${API_ACCOUNT}/account`, {
       customerId,
-      accountType
-    })
+      ...details
+    }),
+  deleteAccount: (accountNumber) =>
+    axios.delete(`${API_ACCOUNT}/account/${accountNumber}`)
 }
 
 // Product Service

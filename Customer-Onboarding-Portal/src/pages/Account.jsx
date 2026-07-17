@@ -31,8 +31,14 @@ export default function Account() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [accountType, setAccountType] = useState('Savings')
+  const [branch, setBranch] = useState('')
+  const [productCode, setProductCode] = useState('')
+  const [currency, setCurrency] = useState('INR')
+  const [minimumBalance, setMinimumBalance] = useState('')
+  const [cardType, setCardType] = useState('RuPay')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [createdAccount, setCreatedAccount] = useState(null)
+  const [accountToDelete, setAccountToDelete] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -60,21 +66,35 @@ export default function Account() {
       setError('KYC not completed. Please complete KYC first.')
       return
     }
+    resetAccountForm()
     setSelectedCustomer(customer)
     setDialogOpen(true)
+  }
+
+  const resetAccountForm = () => {
+    setAccountType('Savings')
+    setBranch('')
+    setProductCode('')
+    setCurrency('INR')
+    setMinimumBalance('')
+    setCardType('RuPay')
   }
 
   const handleCreateAccount = async () => {
     try {
       setLoading(true)
-      await accountAPI.createAccount(selectedCustomer.customerId, accountType)
-      setSuccess('Account opened successfully!')
+      const response = await accountAPI.createAccount(selectedCustomer.customerId, {
+        accountType,
+        branch,
+        productCode,
+        currency,
+        minimumBalance: minimumBalance === '' ? null : Number(minimumBalance),
+        cardType
+      })
       setDialogOpen(false)
-      setAccountType('Savings')
-      setTimeout(() => {
-        loadData()
-        setSuccess('')
-      }, 1500)
+      resetAccountForm()
+      setCreatedAccount(response.data)
+      loadData()
     } catch (error) {
       setError('Failed to create account: ' + error.response?.data?.message || error.message)
     } finally {
@@ -86,6 +106,24 @@ export default function Account() {
     return customer.kycStatus === 'Approved' || customer.kycApproved
   }
 
+  const handleDeleteAccount = (account) => {
+    setAccountToDelete(account)
+  }
+
+  const confirmDeleteAccount = async () => {
+    try {
+      setLoading(true)
+      await accountAPI.deleteAccount(accountToDelete.accountNumber)
+      setAccountToDelete(null)
+      loadData()
+    } catch (error) {
+      setError('Failed to delete account: ' + error.response?.data?.message || error.message)
+      setAccountToDelete(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Box>
       <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
@@ -93,7 +131,6 @@ export default function Account() {
       </Typography>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>{success}</Alert>}
 
       {/* Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -226,14 +263,17 @@ export default function Account() {
               <TableCell><strong>Account Number</strong></TableCell>
               <TableCell><strong>Customer ID</strong></TableCell>
               <TableCell><strong>Account Type</strong></TableCell>
+              <TableCell><strong>Branch</strong></TableCell>
+              <TableCell><strong>Currency</strong></TableCell>
               <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Created On</strong></TableCell>
+              <TableCell><strong>Opening Date</strong></TableCell>
+              <TableCell align="center"><strong>Actions</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {accounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                   No accounts opened yet
                 </TableCell>
               </TableRow>
@@ -245,10 +285,23 @@ export default function Account() {
                   </TableCell>
                   <TableCell sx={{ fontSize: '0.9rem' }}>{account.customerId}</TableCell>
                   <TableCell>{account.accountType}</TableCell>
+                  <TableCell>{account.branch || '—'}</TableCell>
+                  <TableCell>{account.currency || '—'}</TableCell>
                   <TableCell>
-                    <Chip label="Active" color="success" size="small" />
+                    <Chip label={account.status} color="success" size="small" />
                   </TableCell>
                   <TableCell>{new Date(account.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => handleDeleteAccount(account)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -282,9 +335,67 @@ export default function Account() {
                 SelectProps={{
                   native: true
                 }}
+                sx={{ mb: 2 }}
               >
-                <option value="Savings">Savings</option>
-                <option value="Current">Current</option>
+                <option value="Savings">Savings Account</option>
+                <option value="Current">Current Account / Checking Account</option>
+                <option value="Fixed Deposit">Fixed Deposit Account / Time Deposit</option>
+              </TextField>
+              <TextField
+                fullWidth
+                label="Branch of Account Opening"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="MG Road Branch"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                label="Product Name/Code"
+                value={productCode}
+                onChange={(e) => setProductCode(e.target.value)}
+                placeholder="Classic Savings / SB-CLASSIC"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                select
+                label="Currency of Account"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                SelectProps={{
+                  native: true
+                }}
+                sx={{ mb: 2 }}
+              >
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </TextField>
+              <TextField
+                fullWidth
+                type="number"
+                label="Minimum Balance Requirement"
+                value={minimumBalance}
+                onChange={(e) => setMinimumBalance(e.target.value)}
+                placeholder="1000"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                select
+                label="Debit Card Type"
+                value={cardType}
+                onChange={(e) => setCardType(e.target.value)}
+                SelectProps={{
+                  native: true
+                }}
+              >
+                <option value="RuPay">RuPay</option>
+                <option value="Visa">Visa</option>
+                <option value="MasterCard">MasterCard</option>
+                <option value="Amex">Amex</option>
               </TextField>
             </Box>
           )}
@@ -298,6 +409,56 @@ export default function Account() {
             disabled={loading}
           >
             {loading ? 'Creating...' : 'Create Account'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Account Created Confirmation */}
+      <Dialog open={!!createdAccount} onClose={() => setCreatedAccount(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>✅ Account Opened Successfully</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {createdAccount && (
+            <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                <strong>Account Number:</strong> {createdAccount.accountNumber}
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                <strong>Account Status:</strong> {createdAccount.status}
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                <strong>Account Opening Date:</strong> {new Date(createdAccount.createdAt).toLocaleDateString()}
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                <strong>Account Type:</strong> {createdAccount.accountType}
+              </Typography>
+              <Typography variant="body1">
+                <strong>Branch:</strong> {createdAccount.branch || '—'} &nbsp;|&nbsp;
+                <strong> Currency:</strong> {createdAccount.currency || '—'}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreatedAccount(null)} variant="contained">Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Account Confirmation */}
+      <Dialog open={!!accountToDelete} onClose={() => setAccountToDelete(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>⚠️ Delete Account</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {accountToDelete && (
+            <Typography>
+              This will permanently delete account <strong>{accountToDelete.accountNumber}</strong>{' '}
+              (Customer ID: {accountToDelete.customerId}) and all products associated with it (loans,
+              credit cards, investments, insurance, etc.). This action cannot be undone.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAccountToDelete(null)}>Cancel</Button>
+          <Button onClick={confirmDeleteAccount} variant="contained" color="error" disabled={loading}>
+            {loading ? 'Deleting...' : 'Delete Permanently'}
           </Button>
         </DialogActions>
       </Dialog>

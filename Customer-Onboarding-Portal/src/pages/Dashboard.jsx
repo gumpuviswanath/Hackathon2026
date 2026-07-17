@@ -97,10 +97,6 @@ export default function Dashboard() {
         <Typography variant="body2" color="textSecondary">
           ✅ All microservices are operational
           <br />
-          ✅ Real-time data updates every 5 seconds
-          <br />
-          ✅ PostgreSQL persistence enabled
-          <br />
           📍 Navigate using the sidebar menu to perform operations
         </Typography>
       </Box>

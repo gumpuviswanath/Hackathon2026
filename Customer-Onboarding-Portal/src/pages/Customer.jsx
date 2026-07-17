@@ -20,7 +20,9 @@ import {
   Chip,
   Alert,
   Grid,
-  Typography
+  Typography,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material'
 import { customerAPI } from '../api'
 
@@ -30,14 +32,15 @@ export default function Customer() {
   const [openDialog, setOpenDialog] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [sameAsResidential, setSameAsResidential] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
-    email: '',
     dateOfBirth: '',
+    nationality: '',
     address: '',
-    governmentId: '',
-    accountType: 'Savings'
+    mailingAddress: '',
+    governmentId: ''
   })
 
   useEffect(() => {
@@ -65,24 +68,29 @@ export default function Customer() {
   }
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.mobile || !formData.email || !formData.governmentId) {
+    if (!formData.name || !formData.mobile || !formData.governmentId) {
       setError('Please fill all required fields')
       return
     }
 
     try {
       setLoading(true)
-      await customerAPI.createCustomer(formData)
+      const payload = {
+        ...formData,
+        mailingAddress: sameAsResidential ? formData.address : formData.mailingAddress
+      }
+      await customerAPI.createCustomer(payload)
       setSuccess('Customer registered successfully!')
       setFormData({
         name: '',
         mobile: '',
-        email: '',
         dateOfBirth: '',
+        nationality: '',
         address: '',
-        governmentId: '',
-        accountType: 'Savings'
+        mailingAddress: '',
+        governmentId: ''
       })
+      setSameAsResidential(false)
       setOpenDialog(false)
       setTimeout(() => {
         loadCustomers()
@@ -161,17 +169,6 @@ export default function Customer() {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Email *"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="john@example.com"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
                 label="Date of Birth"
                 name="dateOfBirth"
                 type="date"
@@ -183,13 +180,46 @@ export default function Customer() {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Address"
+                label="Nationality/Citizenship"
+                name="nationality"
+                value={formData.nationality}
+                onChange={handleInputChange}
+                placeholder="Indian"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Residential Address"
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
-                placeholder="123 Main St"
+                placeholder="123 Main St, City, State, ZIP, Country"
               />
             </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={sameAsResidential}
+                    onChange={(e) => setSameAsResidential(e.target.checked)}
+                  />
+                }
+                label="Mailing address same as residential address"
+              />
+            </Grid>
+            {!sameAsResidential && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Mailing Address"
+                  name="mailingAddress"
+                  value={formData.mailingAddress}
+                  onChange={handleInputChange}
+                  placeholder="123 Main St, City, State, ZIP, Country"
+                />
+              </Grid>
+            )}
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -199,22 +229,6 @@ export default function Customer() {
                 onChange={handleInputChange}
                 placeholder="AADHAR123456"
               />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                select
-                label="Account Type"
-                name="accountType"
-                value={formData.accountType}
-                onChange={handleInputChange}
-                SelectProps={{
-                  native: true
-                }}
-              >
-                <option value="Savings">Savings</option>
-                <option value="Current">Current</option>
-              </TextField>
             </Grid>
           </Grid>
         </DialogContent>
@@ -239,7 +253,7 @@ export default function Customer() {
                 <TableCell><strong>Customer ID</strong></TableCell>
                 <TableCell><strong>Name</strong></TableCell>
                 <TableCell><strong>Mobile</strong></TableCell>
-                <TableCell><strong>Email</strong></TableCell>
+                <TableCell><strong>Nationality</strong></TableCell>
                 <TableCell><strong>KYC Status</strong></TableCell>
                 <TableCell><strong>Overall Status</strong></TableCell>
               </TableRow>
@@ -257,7 +271,7 @@ export default function Customer() {
                     <TableCell sx={{ fontSize: '0.9rem' }}>{customer.customerId}</TableCell>
                     <TableCell>{customer.name}</TableCell>
                     <TableCell>{customer.mobile}</TableCell>
-                    <TableCell>{customer.email}</TableCell>
+                    <TableCell>{customer.nationality}</TableCell>
                     <TableCell>
                       <Chip
                         label={customer.kycStatus}

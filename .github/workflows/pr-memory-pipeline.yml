@@ -1,0 +1,154 @@
+name: PR Agent -> Kafka -> Memory Agent -> Database
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-to-memory-pipeline:
+    runs-on: ubuntu-latest
+
+    # Kafka and Postgres are ephemeral, job-scoped service containers - they only live for
+    # this job. Both agents therefore run as step-groups within this single job so the
+    # Memory Agent can genuinely consume the message the PR Agent just published, rather
+    # than a simulated hand-off (a separate job would get a brand new, empty broker).
+    services:
+      kafka:
+        image: confluentinc/cp-kafka:7.6.1
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_NODE_ID: 1
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pragent
+          POSTGRES_PASSWORD: pragent
+          POSTGRES_DB: pr_memory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pragent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql://pragent:pragent@localhost:5432/pr_memory
+      KAFKA_TOPIC: pr-reviews
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Kafka CLI tools
+        run: |
+          curl -sL https://archive.apache.org/dist/kafka/3.6.1/kafka_2.13-3.6.1.tgz | tar xz
+          mv kafka_2.13-3.6.1 kafka
+
+      - name: Install PostgreSQL client and jq
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
+
+      - name: Create Kafka topic
+        run: |
+          ./kafka/bin/kafka-topics.sh --create --topic "$KAFKA_TOPIC" \
+            --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 || true
+
+      - name: Create pr_reviews table
+        run: |
+          psql "$DATABASE_URL" -c "
+            CREATE TABLE IF NOT EXISTS pr_reviews (
+              id SERIAL PRIMARY KEY,
+              pr_number INT NOT NULL,
+              title TEXT,
+              author TEXT,
+              body TEXT,
+              diff TEXT,
+              consumed_at TIMESTAMPTZ DEFAULT now()
+            );
+          "
+
+      # ---------------------------------------------------------------------------
+      # PR Agent - reads the PR description and the actual code diff, publishes both
+      # as a single JSON message to the Kafka topic.
+      # ---------------------------------------------------------------------------
+      - name: "[PR Agent] Read PR description and code diff"
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          DIFF=$(gh pr diff "$PR_NUMBER" || echo "(no diff available)")
+          jq -n -c \
+            --arg pr_number "$PR_NUMBER" \
+            --arg title "$PR_TITLE" \
+            --arg author "$PR_AUTHOR" \
+            --arg body "$PR_BODY" \
+            --arg diff "$DIFF" \
+            '{pr_number: $pr_number, title: $title, author: $author, body: $body, diff: $diff}' \
+            > pr-event.json
+          echo "Prepared PR event (this is what gets published to Kafka):"
+          cat pr-event.json
+
+      - name: "[PR Agent] Publish PR event to Kafka topic"
+        run: |
+          cat pr-event.json | ./kafka/bin/kafka-console-producer.sh \
+            --broker-list localhost:9092 --topic "$KAFKA_TOPIC"
+          echo "Published 1 message to Kafka topic '$KAFKA_TOPIC'."
+
+      # ---------------------------------------------------------------------------
+      # Memory Agent - consumes the message the PR Agent just published from Kafka
+      # and persists it into Postgres.
+      # ---------------------------------------------------------------------------
+      - name: "[Memory Agent] Consume PR event from Kafka topic"
+        run: |
+          ./kafka/bin/kafka-console-consumer.sh \
+            --bootstrap-server localhost:9092 \
+            --topic "$KAFKA_TOPIC" \
+            --from-beginning --max-messages 1 --timeout-ms 20000 \
+            > consumed-message.json
+          echo "Message consumed from Kafka topic '$KAFKA_TOPIC':"
+          cat consumed-message.json
+
+      - name: "[Memory Agent] Persist PR event to the database"
+        run: |
+          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
+          TITLE=$(jq -r '.title' consumed-message.json)
+          AUTHOR=$(jq -r '.author' consumed-message.json)
+          BODY=$(jq -r '.body' consumed-message.json)
+          DIFF=$(jq -r '.diff' consumed-message.json)
+
+          psql "$DATABASE_URL" \
+            -v pr_number="$PR_NUMBER" \
+            -v title="$TITLE" \
+            -v author="$AUTHOR" \
+            -v body="$BODY" \
+            -v diff_content="$DIFF" \
+            -c "INSERT INTO pr_reviews (pr_number, title, author, body, diff)
+                VALUES (:'pr_number'::int, :'title', :'author', :'body', :'diff_content');"
+
+      - name: "[Memory Agent] Show what is now stored in the database"
+        run: |
+          psql "$DATABASE_URL" -c "
+            SELECT id, pr_number, title, author,
+                   left(body, 80) AS body_preview,
+                   left(diff, 80) AS diff_preview,
+                   consumed_at
+            FROM pr_reviews
+            ORDER BY id;
+          "
