@@ -17,8 +17,6 @@ public class DashboardPage extends CommonPage {
 	}
 
 	public void clickSignOut() {
-		// Deliberately broken selector for a self-heal-locators.yml dry run - was
-		// "header button" (last of the two AppBar icon buttons).
 		page.locator("header button[aria-label='Sign out']").click();
 	}
 
