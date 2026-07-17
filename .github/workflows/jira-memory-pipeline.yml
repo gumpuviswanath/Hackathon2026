@@ -1,0 +1,207 @@
+name: Jira Agent -> Kafka -> Memory Agent -> Database
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  jira-to-memory-pipeline:
+    runs-on: ubuntu-latest
+
+    # Independent pipeline: own Kafka topic, own Postgres table, own job-scoped
+    # Kafka/Postgres service containers. Runs alongside pr-memory-pipeline.yml on
+    # the same pull_request trigger without touching it.
+    services:
+      kafka:
+        image: confluentinc/cp-kafka:7.6.1
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_NODE_ID: 1
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pragent
+          POSTGRES_PASSWORD: pragent
+          POSTGRES_DB: pr_memory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pragent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql://pragent:pragent@localhost:5432/pr_memory
+      KAFKA_TOPIC: jira-pr-events
+      JIRA_BASE_URL: https://beyond2026.atlassian.net
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---------------------------------------------------------------------------
+      # Look for a Jira issue key (e.g. "SCRUM-8") in this PR's commit messages.
+      # Every later step is skipped when none is found, so PRs that don't reference
+      # a Jira issue are unaffected.
+      # ---------------------------------------------------------------------------
+      - name: "[Jira Agent] Extract Jira issue key from commit messages"
+        id: jira_key
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          KEY=$(git log --pretty=%B "$BASE_SHA..$HEAD_SHA" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n1 || true)
+          if [ -z "$KEY" ]; then
+            echo "No Jira issue key found in this PR's commit messages; skipping Jira sync."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found Jira issue key: $KEY"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "key=$KEY" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Kafka CLI tools
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          curl -sL https://archive.apache.org/dist/kafka/3.6.1/kafka_2.13-3.6.1.tgz | tar xz
+          mv kafka_2.13-3.6.1 kafka
+
+      - name: Install PostgreSQL client and jq
+        if: steps.jira_key.outputs.found == 'true'
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
+
+      - name: Create Kafka topic
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          ./kafka/bin/kafka-topics.sh --create --topic "$KAFKA_TOPIC" \
+            --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 || true
+
+      - name: Create jira_pr_details table
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          psql "$DATABASE_URL" -c "
+            CREATE TABLE IF NOT EXISTS jira_pr_details (
+              id SERIAL PRIMARY KEY,
+              pr_number INT NOT NULL,
+              jira_key TEXT NOT NULL,
+              summary TEXT,
+              description TEXT,
+              acceptance_criteria TEXT,
+              consumed_at TIMESTAMPTZ DEFAULT now()
+            );
+          "
+
+      # ---------------------------------------------------------------------------
+      # Jira Agent - "Acceptance Criteria" is a custom field whose id differs per
+      # Jira site, so it's resolved by field name at runtime rather than hardcoded.
+      # ---------------------------------------------------------------------------
+      - name: "[Jira Agent] Resolve Acceptance Criteria field id"
+        if: steps.jira_key.outputs.found == 'true'
+        id: jira_field
+        run: |
+          FIELD_ID=$(curl -sf -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Accept: application/json" \
+            "$JIRA_BASE_URL/rest/api/3/field" \
+            | jq -r '.[] | select(.name | test("acceptance criteria"; "i")) | .id' | head -n1)
+          echo "Resolved Acceptance Criteria field id: ${FIELD_ID:-<not found>}"
+          echo "field_id=$FIELD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: "[Jira Agent] Fetch issue and publish PR + Jira data to Kafka"
+        if: steps.jira_key.outputs.found == 'true'
+        env:
+          JIRA_KEY: ${{ steps.jira_key.outputs.key }}
+          AC_FIELD_ID: ${{ steps.jira_field.outputs.field_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          FIELDS="summary,description"
+          [ -n "$AC_FIELD_ID" ] && FIELDS="$FIELDS,$AC_FIELD_ID"
+
+          curl -sf -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Accept: application/json" \
+            "$JIRA_BASE_URL/rest/api/3/issue/$JIRA_KEY?fields=$FIELDS&expand=renderedFields" \
+            > jira-issue.json
+
+          SUMMARY=$(jq -r '.fields.summary // ""' jira-issue.json)
+          DESCRIPTION=$(jq -r '.renderedFields.description // ""' jira-issue.json | sed -e 's/<[^>]*>//g')
+          if [ -n "$AC_FIELD_ID" ]; then
+            ACCEPTANCE_CRITERIA=$(jq -r --arg f "$AC_FIELD_ID" '.renderedFields[$f] // ""' jira-issue.json | sed -e 's/<[^>]*>//g')
+          else
+            ACCEPTANCE_CRITERIA=""
+          fi
+
+          jq -n -c \
+            --arg pr_number "$PR_NUMBER" \
+            --arg jira_key "$JIRA_KEY" \
+            --arg summary "$SUMMARY" \
+            --arg description "$DESCRIPTION" \
+            --arg acceptance_criteria "$ACCEPTANCE_CRITERIA" \
+            '{pr_number: $pr_number, jira_key: $jira_key, summary: $summary, description: $description, acceptance_criteria: $acceptance_criteria}' \
+            > jira-event.json
+          echo "Prepared Jira event (this is what gets published to Kafka):"
+          cat jira-event.json
+
+          cat jira-event.json | ./kafka/bin/kafka-console-producer.sh \
+            --broker-list localhost:9092 --topic "$KAFKA_TOPIC"
+          echo "Published 1 message to Kafka topic '$KAFKA_TOPIC'."
+
+      # ---------------------------------------------------------------------------
+      # Memory Agent - consumes the message the Jira Agent just published from
+      # Kafka and persists it into Postgres, tagged with the PR number.
+      # ---------------------------------------------------------------------------
+      - name: "[Memory Agent] Consume Jira event from Kafka topic"
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          ./kafka/bin/kafka-console-consumer.sh \
+            --bootstrap-server localhost:9092 \
+            --topic "$KAFKA_TOPIC" \
+            --from-beginning --max-messages 1 --timeout-ms 20000 \
+            > consumed-message.json
+          echo "Message consumed from Kafka topic '$KAFKA_TOPIC':"
+          cat consumed-message.json
+
+      - name: "[Memory Agent] Persist Jira event to the database"
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
+          JIRA_KEY=$(jq -r '.jira_key' consumed-message.json)
+          SUMMARY=$(jq -r '.summary' consumed-message.json)
+          DESCRIPTION=$(jq -r '.description' consumed-message.json)
+          ACCEPTANCE_CRITERIA=$(jq -r '.acceptance_criteria' consumed-message.json)
+
+          psql "$DATABASE_URL" \
+            -v pr_number="$PR_NUMBER" \
+            -v jira_key="$JIRA_KEY" \
+            -v summary="$SUMMARY" \
+            -v description="$DESCRIPTION" \
+            -v acceptance_criteria="$ACCEPTANCE_CRITERIA" \
+            -c "INSERT INTO jira_pr_details (pr_number, jira_key, summary, description, acceptance_criteria)
+                VALUES (:'pr_number'::int, :'jira_key', :'summary', :'description', :'acceptance_criteria');"
+
+      - name: "[Memory Agent] Show what is now stored in the database"
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          psql "$DATABASE_URL" -c "
+            SELECT id, pr_number, jira_key, summary,
+                   left(description, 80) AS description_preview,
+                   left(acceptance_criteria, 80) AS acceptance_criteria_preview,
+                   consumed_at
+            FROM jira_pr_details
+            ORDER BY id;
+          "
