@@ -17,7 +17,7 @@ public class DashboardPage extends CommonPage {
 	}
 
 	public void clickSignOut() {
-		page.locator("header button").last().click();
+		page.locator("header button[aria-label='Sign out']").click();
 	}
 
 	public void verifyMenuLinkIsPresent(String label) {
