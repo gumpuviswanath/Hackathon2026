@@ -1,0 +1,125 @@
+name: Playwright + Cucumber E2E Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ---------------------------------------------------------------------------
+      # Build the 4 Spring Boot services. Their Dockerfiles just COPY a pre-built
+      # jar from target/ rather than building it themselves, so this has to run
+      # before "docker compose build".
+      # ---------------------------------------------------------------------------
+      - name: Build backend services (Customer, KYC, Account, Product)
+        run: mvn -B clean package -DskipTests
+
+      # ---------------------------------------------------------------------------
+      # Only the 4 backend services run via Docker here - deliberately NOT the
+      # "portal" service. Its Dockerfile serves the built frontend with a plain
+      # static file server that has no SPA fallback routing, so a direct
+      # navigation to e.g. /customer would 404. The frontend is instead started
+      # natively below via `npm run start` (Vite's dev server), which handles
+      # client-side routes correctly - the same way it's run locally. This avoids
+      # touching the Dockerfile at all.
+      # ---------------------------------------------------------------------------
+      - name: Start backend services via Docker Compose
+        run: docker compose up --build -d customer-service kyc-service account-service product-service
+
+      - name: Wait for backend services to become healthy
+        run: |
+          for url in http://localhost:3000/customer/all http://localhost:3001/kyc/all http://localhost:3002/account/all http://localhost:3003/product/all; do
+            echo "Waiting for $url ..."
+            for i in $(seq 1 30); do
+              if curl -sf "$url" > /dev/null; then
+                echo "$url is up"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Timed out waiting for $url"
+                docker compose logs
+                exit 1
+              fi
+              sleep 3
+            done
+          done
+
+      - name: Install frontend dependencies
+        working-directory: Customer-Onboarding-Portal
+        run: npm ci
+
+      - name: Start frontend dev server in the background
+        working-directory: Customer-Onboarding-Portal
+        run: nohup npm run start > ../frontend.log 2>&1 &
+
+      - name: Wait for frontend to become available
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3005/login > /dev/null; then
+              echo "Frontend is up"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Timed out waiting for frontend"
+          cat frontend.log
+          exit 1
+
+      # Playwright's Java bindings auto-download their browser driver on first use,
+      # but a fresh Ubuntu runner is missing the system libraries (fonts, GTK, etc.)
+      # headless Chromium needs. --with-deps installs those via apt. Pinned to the
+      # same Playwright version Playwright-Testing/pom.xml depends on (1.45.0).
+      - name: Install Playwright browser + OS dependencies
+        run: npx --yes playwright@1.45.0 install --with-deps chromium
+
+      - name: Run Cucumber + Playwright test suite
+        working-directory: Playwright-Testing
+        run: mvn -B verify -Dheadless=true
+
+      - name: Upload Cucumber HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-html-report
+          path: Playwright-Testing/target/cucumber-html-reports/
+          retention-days: 14
+
+      - name: Upload raw Cucumber JSON + Surefire results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-raw-results
+          path: |
+            Playwright-Testing/target/cucumber-reports/
+            Playwright-Testing/target/surefire-reports/
+          retention-days: 14
+
+      - name: Show backend service logs (on failure)
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop backend services
+        if: always()
+        run: docker compose down
