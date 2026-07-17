@@ -1,0 +1,47 @@
+name: Check Beyond Database Contents
+
+# Manual only - no pull_request/push trigger. Click "Run workflow" in the
+# Actions tab whenever you want to see what's actually stored in the hosted
+# "beyond" Postgres database.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  db-check:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Show pr_reviews table
+        continue-on-error: true
+        run: |
+          psql "$DATABASE_URL" -c "
+            SELECT id, pr_number, title, author,
+                   left(body, 80) AS body_preview,
+                   left(diff, 80) AS diff_preview,
+                   consumed_at
+            FROM pr_reviews
+            ORDER BY id DESC
+            LIMIT 50;
+          "
+
+      - name: Show jira_pr_details table
+        continue-on-error: true
+        run: |
+          psql "$DATABASE_URL" -c "
+            SELECT id, pr_number, jira_key, summary,
+                   left(description, 80) AS description_preview,
+                   left(acceptance_criteria, 80) AS acceptance_criteria_preview,
+                   consumed_at
+            FROM jira_pr_details
+            ORDER BY id DESC
+            LIMIT 50;
+          "

@@ -12,10 +12,10 @@ jobs:
   pr-to-memory-pipeline:
     runs-on: ubuntu-latest
 
-    # Kafka and Postgres are ephemeral, job-scoped service containers - they only live for
-    # this job. Both agents therefore run as step-groups within this single job so the
-    # Memory Agent can genuinely consume the message the PR Agent just published, rather
-    # than a simulated hand-off (a separate job would get a brand new, empty broker).
+    # Kafka is an ephemeral, job-scoped service container used purely as the
+    # transport between the two agents below. Postgres is a real hosted instance
+    # (see DATABASE_URL secret) so what gets persisted here actually survives
+    # past the end of the job.
     services:
       kafka:
         image: confluentinc/cp-kafka:7.6.1
@@ -33,22 +33,8 @@ jobs:
           KAFKA_NODE_ID: 1
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: pragent
-          POSTGRES_PASSWORD: pragent
-          POSTGRES_DB: pr_memory
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U pragent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
     env:
-      DATABASE_URL: postgresql://pragent:pragent@localhost:5432/pr_memory
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       KAFKA_TOPIC: pr-reviews
       GH_TOKEN: ${{ github.token }}
 
