@@ -1,0 +1,175 @@
+name: Self-Heal Locators
+
+# Fires automatically once "Playwright E2E Suite -> Extent Report -> GitHub
+# Pages" completes, but only does anything if that run actually failed.
+# Diagnoses locator-class Playwright failures using the DOM snapshot captured
+# at the moment of failure (Hooks.java) plus the most recent PR diff / Jira
+# context from the hosted "beyond" database, drives Aider to propose a fix,
+# verifies it by re-running just that scenario, and opens a PR either way -
+# verified fix, or best-effort attempt for human review.
+#
+# NOTE: workflow_run only fires for workflows whose YAML is on the default
+# branch, so e2e-extent-report.yml needs to be on main for this to trigger.
+#
+# NOT YET VERIFIED END-TO-END: the GitHub Models endpoint/model name below,
+# and Aider's exact behavior against them, haven't been exercised against a
+# real failure. Expect to need a debugging pass once this actually runs.
+on:
+  workflow_run:
+    workflows: ["Playwright E2E Suite -> Extent Report -> GitHub Pages"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  self-heal:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GH_TOKEN: ${{ github.token }}
+      # GitHub Models' OpenAI-compatible endpoint - verify against
+      # https://docs.github.com/en/github-models before relying on this; both
+      # the base URL and the model catalog name have changed before.
+      OPENAI_API_BASE: https://models.github.ai/inference
+      OPENAI_API_KEY: ${{ github.token }}
+      AIDER_MODEL: openai/gpt-4o
+
+    steps:
+      - name: Checkout the tested branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Download test failure context from the triggering run
+        uses: actions/download-artifact@v4
+        with:
+          name: test-failure-context
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: Playwright-Testing/target-downloaded
+
+      - name: Lay downloaded artifacts out where the suite normally puts them
+        run: |
+          mkdir -p Playwright-Testing/target/cucumber-reports Playwright-Testing/target/dom-snapshots Playwright-Testing/target/screenshots
+          [ -f Playwright-Testing/target-downloaded/cucumber.json ] && cp Playwright-Testing/target-downloaded/cucumber.json Playwright-Testing/target/cucumber-reports/cucumber.json
+          [ -d Playwright-Testing/target-downloaded/dom-snapshots ] && cp -r Playwright-Testing/target-downloaded/dom-snapshots/. Playwright-Testing/target/dom-snapshots/
+          [ -d Playwright-Testing/target-downloaded/screenshots ] && cp -r Playwright-Testing/target-downloaded/screenshots/. Playwright-Testing/target/screenshots/
+
+      - name: Check for locator-class failures
+        id: scan
+        run: |
+          COUNT=$(jq '[.[].elements[]?.steps[]? | select(.result.status == "failed") | select(.result.error_message // "" | test("TimeoutError|waiting for locator|waiting for selector"))] | length' Playwright-Testing/target/cucumber-reports/cucumber.json 2>/dev/null || echo 0)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $COUNT locator-class failure(s)."
+
+      - name: Set up JDK 17
+        if: steps.scan.outputs.count != '0'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set up Node
+        if: steps.scan.outputs.count != '0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        if: steps.scan.outputs.count != '0'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Aider and PostgreSQL client
+        if: steps.scan.outputs.count != '0'
+        run: |
+          pip install --quiet aider-chat
+          sudo apt-get update -y -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Build backend services
+        if: steps.scan.outputs.count != '0'
+        run: mvn -B clean package -DskipTests
+
+      - name: Start backend services
+        if: steps.scan.outputs.count != '0'
+        run: |
+          (cd Bank-Customer-Id && nohup java -jar target/customer-service-*.jar > "$GITHUB_WORKSPACE/customer-service.log" 2>&1 &)
+          (cd Bank-KYC-Service && nohup java -jar target/kyc-service-*.jar > "$GITHUB_WORKSPACE/kyc-service.log" 2>&1 &)
+          (cd Bank-Account-Service && nohup java -jar target/account-service-*.jar > "$GITHUB_WORKSPACE/account-service.log" 2>&1 &)
+          (cd Bank-Product-Service && nohup java -jar target/product-service-*.jar > "$GITHUB_WORKSPACE/product-service.log" 2>&1 &)
+
+      - name: Wait for backend services
+        if: steps.scan.outputs.count != '0'
+        run: |
+          for i in $(seq 1 30); do
+            ok=0
+            for url in http://localhost:3000/customer/all http://localhost:3001/kyc/all http://localhost:3002/account/all http://localhost:3003/product/all; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$url" --max-time 2 || true)
+              [ "$code" = "200" ] && ok=$((ok+1))
+            done
+            [ "$ok" -eq 4 ] && { echo "All 4 backend services are up."; exit 0; }
+            sleep 3
+          done
+          echo "::error::Backend services did not become ready in time."
+          exit 1
+
+      - name: Install frontend dependencies
+        if: steps.scan.outputs.count != '0'
+        working-directory: Customer-Onboarding-Portal
+        run: npm ci
+
+      - name: Start frontend (portal)
+        if: steps.scan.outputs.count != '0'
+        working-directory: Customer-Onboarding-Portal
+        run: nohup npm start > "$GITHUB_WORKSPACE/portal.log" 2>&1 &
+
+      - name: Wait for frontend
+        if: steps.scan.outputs.count != '0'
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3005 --max-time 2 || true)
+            [ "$code" = "200" ] && { echo "Portal is up."; exit 0; }
+            sleep 3
+          done
+          echo "::error::Portal did not become ready in time."
+          exit 1
+
+      - name: Install Playwright browsers
+        if: steps.scan.outputs.count != '0'
+        working-directory: Playwright-Testing
+        run: |
+          mvn -B -q test-compile dependency:build-classpath -Dmdep.outputFile=cp.txt
+          java -cp "target/classes:target/test-classes:$(cat cp.txt)" com.microsoft.playwright.CLI install --with-deps chromium
+
+      - name: Create a branch for the self-heal attempt
+        if: steps.scan.outputs.count != '0'
+        run: |
+          git config user.name "self-heal-locators[bot]"
+          git config user.email "self-heal-locators[bot]@users.noreply.github.com"
+          git checkout -b "self-heal/run-${{ github.event.workflow_run.id }}"
+
+      - name: Diagnose and fix locators with Aider
+        if: steps.scan.outputs.count != '0'
+        run: python3 scripts/self_heal_locators.py
+
+      - name: Push branch and open PR if a fix was attempted
+        if: steps.scan.outputs.count != '0'
+        run: |
+          if [ -n "$(git log origin/${{ github.event.workflow_run.head_branch }}..HEAD --oneline)" ]; then
+            git push -u origin "self-heal/run-${{ github.event.workflow_run.id }}"
+            gh pr create \
+              --base "${{ github.event.workflow_run.head_branch }}" \
+              --head "self-heal/run-${{ github.event.workflow_run.id }}" \
+              --title "Self-heal: locator fix attempt for failed run #${{ github.event.workflow_run.id }}" \
+              --body-file self-heal-summary.md
+          else
+            echo "No commits made - nothing to open a PR for."
+          fi

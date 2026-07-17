@@ -5,6 +5,7 @@ import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.io.IOException;
@@ -98,10 +99,11 @@ public class Hooks {
 	}
 
 	public void takeScreenshot() {
+	    String baseName = scenario.getName().replace(" ", "_");
 	    try {
 	        // Define the file path for saving the screenshot
 	        String screenshotPath = System.getProperty("user.dir") + "/target/screenshots/"
-	                + scenario.getName().replace(" ", "_") + ".png";
+	                + baseName + ".png";
 
 	        // Capture a screenshot of the current page and save it to the specified path
 	        page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get(screenshotPath)));
@@ -113,6 +115,18 @@ public class Hooks {
 	        scenario.attach(screenshotBytes, "image/png", "Screenshot");
 	    } catch (IOException e) {
 	        // Print stack trace if an error occurs while taking a screenshot
+	        e.printStackTrace();
+	    }
+
+	    // Also dump the live DOM at the moment of failure - the page state that
+	    // caused a locator failure may not be reproducible later, so this is
+	    // captured here rather than re-navigating afterward. Consumed by the
+	    // self-heal-locators workflow to diagnose/fix broken locators.
+	    try {
+	        Path domDir = Paths.get(System.getProperty("user.dir"), "target", "dom-snapshots");
+	        Files.createDirectories(domDir);
+	        Files.writeString(domDir.resolve(baseName + ".html"), page.content());
+	    } catch (IOException e) {
 	        e.printStackTrace();
 	    }
 	}
