@@ -192,7 +192,7 @@ jobs:
             -v description="$DESCRIPTION" \
             -v acceptance_criteria="$ACCEPTANCE_CRITERIA" \
             -c "INSERT INTO jira_pr_details (pr_number, jira_key, summary, description, acceptance_criteria)
-                VALUES (:'pr_number'::int, :'jira_key', :'summary', :'description', :'acceptance_criteria');"
+                VALUES ((:'pr_number')::int, :'jira_key', :'summary', :'description', :'acceptance_criteria');"
 
       - name: "[Memory Agent] Show what is now stored in the database"
         if: steps.jira_key.outputs.found == 'true'
