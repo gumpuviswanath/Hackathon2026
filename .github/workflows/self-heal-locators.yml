@@ -32,12 +32,17 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       GH_TOKEN: ${{ github.token }}
-      # GitHub Models' OpenAI-compatible endpoint - verify against
-      # https://docs.github.com/en/github-models before relying on this; both
-      # the base URL and the model catalog name have changed before.
-      OPENAI_API_BASE: https://models.github.ai/inference
-      OPENAI_API_KEY: ${{ github.token }}
-      AIDER_MODEL: openai/gpt-4o
+      # litellm's dedicated "github/" provider (not the generic OpenAI-compatible
+      # one) - the generic approach (OPENAI_API_BASE pointed at GitHub Models'
+      # endpoint, model "openai/gpt-4o") failed a dry run with "No access to
+      # model: /gpt-4o": litellm strips the "openai/" prefix before sending the
+      # request since it treats that prefix as a routing hint, not part of the
+      # wire payload, but GitHub Models expects the full namespaced model id.
+      # Setting both token env var names since it's unconfirmed which one this
+      # litellm version reads for the github/ provider.
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_API_KEY: ${{ github.token }}
+      AIDER_MODEL: github/gpt-4o
 
     steps:
       - name: Checkout the tested branch
