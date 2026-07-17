@@ -173,8 +173,11 @@ def run_aider(prompt_text, files_to_edit):
     prompt_file = Path("/tmp/self-heal-prompt.txt")
     prompt_file.write_text(prompt_text)
 
-    model = os.environ.get("AIDER_MODEL", "openai/gpt-4o")
-    cmd = ["aider", "--model", model, "--message-file", str(prompt_file), "--yes-always", "--no-check-update"]
+    model = os.environ.get("AIDER_MODEL", "github/gpt-4o")
+    cmd = [
+        "aider", "--model", model, "--message-file", str(prompt_file),
+        "--yes-always", "--no-check-update", "--no-detect-urls",
+    ]
     cmd += [str(f) for f in files_to_edit]
 
     print("Running:", " ".join(cmd))
