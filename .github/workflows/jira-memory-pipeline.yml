@@ -12,39 +12,30 @@ jobs:
   jira-to-memory-pipeline:
     runs-on: ubuntu-latest
 
-    # Independent pipeline: own Kafka topic, own Postgres table, own job-scoped
-    # Kafka/Postgres service containers. Runs alongside pr-memory-pipeline.yml on
-    # the same pull_request trigger without touching it.
+    # Kafka is an ephemeral, job-scoped service container used purely as the
+    # transport between the two agents below. Postgres is a real hosted instance
+    # (see DATABASE_URL secret) so what gets persisted here actually survives
+    # past the end of the job. Runs alongside pr-memory-pipeline.yml on the same
+    # pull_request trigger without touching it.
     services:
       kafka:
         image: confluentinc/cp-kafka:7.6.1
         ports:
           - 9092:9092
         env:
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
           KAFKA_PROCESS_ROLES: broker,controller
           KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
           KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
           KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
           KAFKA_NODE_ID: 1
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: pragent
-          POSTGRES_PASSWORD: pragent
-          POSTGRES_DB: pr_memory
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U pragent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
     env:
-      DATABASE_URL: postgresql://pragent:pragent@localhost:5432/pr_memory
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       KAFKA_TOPIC: jira-pr-events
       JIRA_BASE_URL: https://beyond2026.atlassian.net
       JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
@@ -86,6 +77,23 @@ jobs:
       - name: Install PostgreSQL client and jq
         if: steps.jira_key.outputs.found == 'true'
         run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
+
+      # The kafka service container has no health check, so without this wait the
+      # topic-create/produce/consume steps below can race a broker that's still
+      # starting up, silently losing the message (consumer ends up with 0 messages).
+      - name: Wait for Kafka broker to be ready
+        if: steps.jira_key.outputs.found == 'true'
+        run: |
+          for i in $(seq 1 20); do
+            if ./kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1; then
+              echo "Kafka broker is ready."
+              exit 0
+            fi
+            echo "Kafka not ready yet, retrying ($i/20)..."
+            sleep 3
+          done
+          echo "::error::Kafka broker did not become ready in time."
+          exit 1
 
       - name: Create Kafka topic
         if: steps.jira_key.outputs.found == 'true'
@@ -176,23 +184,28 @@ jobs:
           echo "Message consumed from Kafka topic '$KAFKA_TOPIC':"
           cat consumed-message.json
 
+          if ! jq -e . consumed-message.json >/dev/null 2>&1; then
+            echo "::error::No message was consumed from Kafka topic '$KAFKA_TOPIC' - the Jira Agent's publish likely never reached the broker."
+            exit 1
+          fi
+
       - name: "[Memory Agent] Persist Jira event to the database"
         if: steps.jira_key.outputs.found == 'true'
         run: |
-          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
-          JIRA_KEY=$(jq -r '.jira_key' consumed-message.json)
-          SUMMARY=$(jq -r '.summary' consumed-message.json)
-          DESCRIPTION=$(jq -r '.description' consumed-message.json)
-          ACCEPTANCE_CRITERIA=$(jq -r '.acceptance_criteria' consumed-message.json)
+          # Built and escaped in bash rather than relying on psql's client-side
+          # :'var' substitution, which this runner's psql leaves un-interpolated.
+          esc() { printf '%s' "$1" | sed "s/'/''/g"; }
 
-          psql "$DATABASE_URL" \
-            -v pr_number="$PR_NUMBER" \
-            -v jira_key="$JIRA_KEY" \
-            -v summary="$SUMMARY" \
-            -v description="$DESCRIPTION" \
-            -v acceptance_criteria="$ACCEPTANCE_CRITERIA" \
-            -c "INSERT INTO jira_pr_details (pr_number, jira_key, summary, description, acceptance_criteria)
-                VALUES ((:'pr_number')::int, :'jira_key', :'summary', :'description', :'acceptance_criteria');"
+          PR_NUMBER=$(jq -r '.pr_number' consumed-message.json)
+          JIRA_KEY=$(esc "$(jq -r '.jira_key' consumed-message.json)")
+          SUMMARY=$(esc "$(jq -r '.summary' consumed-message.json)")
+          DESCRIPTION=$(esc "$(jq -r '.description' consumed-message.json)")
+          ACCEPTANCE_CRITERIA=$(esc "$(jq -r '.acceptance_criteria' consumed-message.json)")
+
+          psql "$DATABASE_URL" -c "
+            INSERT INTO jira_pr_details (pr_number, jira_key, summary, description, acceptance_criteria)
+            VALUES (${PR_NUMBER}, '${JIRA_KEY}', '${SUMMARY}', '${DESCRIPTION}', '${ACCEPTANCE_CRITERIA}');
+          "
 
       - name: "[Memory Agent] Show what is now stored in the database"
         if: steps.jira_key.outputs.found == 'true'
