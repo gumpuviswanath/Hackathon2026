@@ -57,7 +57,7 @@ jobs:
       - name: Lay downloaded artifacts out where the suite normally puts them
         run: |
           mkdir -p Playwright-Testing/target/cucumber-reports Playwright-Testing/target/dom-snapshots Playwright-Testing/target/screenshots
-          [ -f Playwright-Testing/target-downloaded/cucumber.json ] && cp Playwright-Testing/target-downloaded/cucumber.json Playwright-Testing/target/cucumber-reports/cucumber.json
+          [ -f Playwright-Testing/target-downloaded/cucumber-reports/cucumber.json ] && cp Playwright-Testing/target-downloaded/cucumber-reports/cucumber.json Playwright-Testing/target/cucumber-reports/cucumber.json
           [ -d Playwright-Testing/target-downloaded/dom-snapshots ] && cp -r Playwright-Testing/target-downloaded/dom-snapshots/. Playwright-Testing/target/dom-snapshots/
           [ -d Playwright-Testing/target-downloaded/screenshots ] && cp -r Playwright-Testing/target-downloaded/screenshots/. Playwright-Testing/target/screenshots/
 
