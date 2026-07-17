@@ -37,8 +37,10 @@ public class Hooks {
 	    // Initialize Playwright instance
 	    playwright = Playwright.create();
 
-	    // Launch a new Chromium browser instance in non-headless mode
-	    browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
+	    // Headless by default (CI-friendly, e.g. GitHub Actions runners).
+	    // Run locally with visible browser via: mvn test -Dheadless=false
+	    boolean headless = Boolean.parseBoolean(System.getProperty("headless", "true"));
+	    browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(headless));
 
 	    // Create a new browser context for isolated session handling
 	    context = browser.newContext();

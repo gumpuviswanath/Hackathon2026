@@ -1,19 +1,17 @@
-#Author: abhishek20009@gmail.com
-Feature: Dashboard Functionality
+Feature: Dashboard Overview
 
-Scenario: Verify Dashboard functionilty tabs
-    Given User navigate to the login page
-    When User enter username "student"
-    And User enter password "Password123"
-    And User click on login button
-    Then Verify different tabs are present
-    |Home|Practice|Courses|Blog|Contact|
-    
- Scenario: Verify Logout button is Present
-    Given User navigate to the login page
-    When User enter username "student"
-    And User enter password "Password123"
-    And User click on login button
- 		Then User should verify "Log out" button is present
- 		Then User click on "Log out" button
- 		Then User should verify the session is terminated
+  Background:
+    Given User navigates to the Beyond Banking login page
+    When User enters username "admin" and password "beyond123"
+    And User clicks on the login button
+    Then User should be logged in successfully
+
+  Scenario: Verify dashboard loads with navigation menu links
+    Then User should see the "Dashboard Overview" page heading
+    When User opens the navigation menu
+    Then User should see "Customer" "KYC" "Account" and "Product" links in the menu
+
+  Scenario: Verify user can log out successfully
+    When User opens the navigation menu
+    And User clicks the sign out button
+    Then User should be redirected to the login page
