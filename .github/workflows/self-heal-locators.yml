@@ -2,18 +2,29 @@ name: Self-Heal Locators
 
 # Fires automatically once "Playwright E2E Suite -> Extent Report -> GitHub
 # Pages" completes, but only does anything if that run actually failed.
-# Diagnoses locator-class Playwright failures using the DOM snapshot captured
-# at the moment of failure (Hooks.java) plus the most recent PR diff / Jira
-# context from the hosted "beyond" database, drives Aider to propose a fix,
-# verifies it by re-running just that scenario, and opens a PR either way -
-# verified fix, or best-effort attempt for human review.
+#
+# For each locator-class Playwright failure, gives Aider the DOM snapshot
+# captured at the moment of failure (Hooks.java), the exact PR diff / Jira
+# acceptance criteria for the PR under test (looked up below, not just a
+# best-effort "most recent row"), and asks it to pick exactly one of three
+# outcomes: a stale-locator fix scoped to the Page Object, a wider fix
+# spanning the feature file/step definition/Page Object if - and only if -
+# the linked Jira ticket specifically and exactly justifies a new
+# requirement, or no fix at all if neither applies. Every attempted fix is
+# verified by re-running its whole feature file and reverted if it doesn't
+# pass, so the PR only ever contains confirmed-working fixes; anything that
+# couldn't be confidently and verifiably fixed is opened as a GitHub issue
+# for human triage instead. See scripts/self_heal_locators.py for the full
+# logic.
 #
 # NOTE: workflow_run only fires for workflows whose YAML is on the default
 # branch, so e2e-extent-report.yml needs to be on main for this to trigger.
 #
-# NOT YET VERIFIED END-TO-END: the GitHub Models endpoint/model name below,
-# and Aider's exact behavior against them, haven't been exercised against a
-# real failure. Expect to need a debugging pass once this actually runs.
+# NOT YET VERIFIED END-TO-END: the "documented requirement change" / issue-
+# triage paths are new and untested - only the narrower stale-locator path
+# has been confirmed working via a real dry run (see git history). Expect a
+# debugging pass once this actually runs against a real requirement-change
+# scenario.
 on:
   workflow_run:
     workflows: ["Playwright E2E Suite -> Extent Report -> GitHub Pages"]
@@ -22,6 +33,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   models: read
 
 jobs:
@@ -51,6 +63,20 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
+
+      # Used to look up the exact pr_reviews/jira_pr_details rows for the PR
+      # actually under test (rather than a best-effort "most recent row"),
+      # which the classification logic in self_heal_locators.py needs to
+      # trust before treating a failure as a documented requirement change
+      # rather than a possible regression.
+      - name: Look up the PR number for this branch
+        id: pr_lookup
+        run: |
+          PR_NUMBER=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${{ github.event.workflow_run.head_branch }}&state=all" \
+            | jq -r '.[0].number // empty')
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Correlated PR number: ${PR_NUMBER:-<none found>}"
 
       - name: Download test failure context from the triggering run
         uses: actions/download-artifact@v4
@@ -164,6 +190,8 @@ jobs:
 
       - name: Diagnose and fix locators with Aider
         if: steps.scan.outputs.count != '0'
+        env:
+          PR_NUMBER: ${{ steps.pr_lookup.outputs.pr_number }}
         run: python3 scripts/self_heal_locators.py
 
       - name: Push branch and open PR if a fix was attempted
