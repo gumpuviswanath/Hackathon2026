@@ -69,7 +69,7 @@ export default function Customer() {
   }
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.mobile || !formData.governmentId) {
+    if (!formData.name || !formData.mobile || !formData.email || !formData.governmentId) {
       setError('Please fill all required fields')
       return
     }
@@ -171,7 +171,7 @@ export default function Customer() {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Email"
+                label="Email *"
                 name="email"
                 type="email"
                 value={formData.email}
