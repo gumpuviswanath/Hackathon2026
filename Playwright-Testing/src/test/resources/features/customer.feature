@@ -18,7 +18,7 @@ Feature: Customer Management
 
   Scenario: Successfully register a new customer with valid mandatory details
     When User clicks on the Register New Customer button
-    And User enters customer details with name "Alice Johnson" mobile "9876500001" and government id "AADHAR500001"
+    And User enters customer details with name "Alice Johnson" mobile "9876500001" government id "AADHAR500001" and email "alice.johnson@example.com"
     And User clicks on the Register button
     Then User should see the success message "Customer registered successfully!"
     And the newly registered customer with mobile "9876500001" should appear in the customers table
