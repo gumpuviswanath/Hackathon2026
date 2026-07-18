@@ -38,7 +38,7 @@ public class CommonPage {
 	}
 
 	public void verifySuccessMessageIsPresent(String message) {
-		Locator alert = page.locator("text=" + message);
+		Locator alert = page.locator("div[role='alert']:has-text('" + message + "')");
 		alert.first().waitFor(new Locator.WaitForOptions().setTimeout(5000));
 		Assert.assertTrue("Success message not visible: " + message, alert.first().isVisible());
 	}
