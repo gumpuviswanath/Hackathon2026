@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 """
 Reads Playwright-Testing/target/cucumber-reports/cucumber.json, finds
-locator-class failures (Playwright TimeoutError waiting for a selector),
-gathers context for each (DOM snapshot at the moment of failure, most recent
-PR diff / Jira acceptance criteria from the hosted database), drives Aider to
-propose a fix scoped to the relevant Page Object class, and verifies the fix
-by re-running just that scenario. Writes self-heal-summary.md either way, for
+locator-class failures (Playwright TimeoutError waiting for a selector), and
+for each one asks Aider to pick exactly one of three outcomes:
+
+  1. Stale locator - element still means the same thing, just found
+     differently now. Fix scoped to the Page Object method only.
+  2. Documented requirement change - the DOM snapshot plus an EXACT-matched
+     Jira ticket's acceptance criteria justify a genuinely new requirement
+     (e.g. a new mandatory field). Fix may span the feature file, step
+     definition, and Page Object.
+  3. Unclear / possible regression - neither of the above applies. No file
+     changes; flagged as a GitHub issue for human triage instead of a PR.
+
+Every attempted fix (paths 1 and 2) is verified by re-running the whole
+feature file it belongs to; anything that doesn't verify is reverted and
+flagged as an issue too, so the resulting PR only ever contains fixes that
+are actually confirmed working. Writes self-heal-summary.md either way, for
 the PR body.
 
 Run from the repo root with the full app stack (backends + portal) already up
@@ -23,13 +34,15 @@ PLAYWRIGHT_DIR = REPO_ROOT / "Playwright-Testing"
 CUCUMBER_JSON = PLAYWRIGHT_DIR / "target" / "cucumber-reports" / "cucumber.json"
 DOM_SNAPSHOT_DIR = PLAYWRIGHT_DIR / "target" / "dom-snapshots"
 PAGE_OBJECT_DIR = PLAYWRIGHT_DIR / "src" / "test" / "java" / "pageObjects"
+STEP_DEF_DIR = PLAYWRIGHT_DIR / "src" / "test" / "java" / "stepdefinitions"
 
 LOCATOR_ERROR_PATTERNS = ["TimeoutError", "waiting for locator", "waiting for selector"]
 # GitHub Models' free/rate-limited tier caps requests at ~8000 tokens total,
-# which also has to cover Aider's own prompt scaffolding and the two Java
-# files added to the chat - keep these tight.
+# which also has to cover Aider's own prompt scaffolding and the files added
+# to the chat - keep these tight.
 MAX_DOM_CHARS = 6000
 MAX_DIFF_CHARS = 1500
+NO_FIX_MARKER = "NO_FIX_NO_EVIDENCE"
 SUMMARY_PATH = REPO_ROOT / "self-heal-summary.md"
 
 
@@ -77,6 +90,19 @@ def infer_page_object(step_def_class):
     return candidate if candidate.exists() else None
 
 
+def step_def_file(step_def_class):
+    if not step_def_class:
+        return None
+    candidate = STEP_DEF_DIR / f"{step_def_class}.java"
+    return candidate if candidate.exists() else None
+
+
+def feature_file_path(feature_uri):
+    rel = feature_uri[len("file:"):] if feature_uri.startswith("file:") else feature_uri
+    path = PLAYWRIGHT_DIR / rel
+    return path if path.exists() else None
+
+
 def dom_snapshot_for(scenario_name):
     path = DOM_SNAPSHOT_DIR / f"{scenario_name.replace(' ', '_')}.html"
     if not path.exists():
@@ -108,45 +134,87 @@ def query_db(sql):
         return None
 
 
-def recent_pr_context():
-    # Best-effort: the most recent row on record, not a guaranteed match to
-    # whichever PR actually caused this specific failure - e2e-extent-report.yml
-    # runs per-branch, not per-PR, so there's no strict linkage. Still useful
-    # signal for "what changed recently."
-    row = query_db("SELECT pr_number, title, diff FROM pr_reviews ORDER BY id DESC LIMIT 1;")
+def _most_recent_pr_row():
+    return query_db("SELECT pr_number, title, diff FROM pr_reviews ORDER BY id DESC LIMIT 1;")
+
+
+def pr_context(pr_number):
+    """Returns (context_dict_or_None, is_exact_match_for_the_pr_under_test)."""
+    row = None
+    exact = False
+    if pr_number:
+        row = query_db(
+            f"SELECT pr_number, title, diff FROM pr_reviews "
+            f"WHERE pr_number = {int(pr_number)} ORDER BY id DESC LIMIT 1;"
+        )
+        exact = row is not None
     if not row:
-        return None
+        row = _most_recent_pr_row()
+    if not row:
+        return None, False
     parts = row.split("\x1f")
     if len(parts) < 3:
-        return None
+        return None, False
     diff = parts[2]
     if len(diff) > MAX_DIFF_CHARS:
         diff = diff[:MAX_DIFF_CHARS] + "\n... (truncated)"
-    return {"pr_number": parts[0], "title": parts[1], "diff": diff}
+    return {"pr_number": parts[0], "title": parts[1], "diff": diff}, exact
 
 
-def recent_jira_context():
-    row = query_db(
+def _most_recent_jira_row():
+    return query_db(
         "SELECT jira_key, summary, description, acceptance_criteria "
         "FROM jira_pr_details ORDER BY id DESC LIMIT 1;"
     )
+
+
+def jira_context(pr_number):
+    """Returns (context_dict_or_None, is_exact_match_for_the_pr_under_test)."""
+    row = None
+    exact = False
+    if pr_number:
+        row = query_db(
+            f"SELECT jira_key, summary, description, acceptance_criteria "
+            f"FROM jira_pr_details WHERE pr_number = {int(pr_number)} ORDER BY id DESC LIMIT 1;"
+        )
+        exact = row is not None
     if not row:
-        return None
+        row = _most_recent_jira_row()
+    if not row:
+        return None, False
     parts = row.split("\x1f")
     if len(parts) < 4:
-        return None
-    return {"jira_key": parts[0], "summary": parts[1], "description": parts[2], "acceptance_criteria": parts[3]}
+        return None, False
+    return {
+        "jira_key": parts[0], "summary": parts[1],
+        "description": parts[2], "acceptance_criteria": parts[3],
+    }, exact
 
 
-def build_prompt(failure, dom_html, pr_ctx, jira_ctx):
+def build_prompt(failure, dom_html, pr_ctx, pr_exact, jira_ctx, jira_exact):
     lines = [
-        "A Playwright/Cucumber test step is failing because a locator can no "
-        "longer find the element it's looking for. Diagnose the correct locator "
-        "from the live DOM snapshot below and fix the Page Object method that "
-        "builds it. Only change locator logic - do not change unrelated "
-        "behavior. If the DOM snapshot shows the element genuinely no longer "
-        "exists or the flow has materially changed (not just a renamed "
-        "attribute/selector), say so instead of guessing a fix.",
+        "A Playwright/Cucumber test step is failing. Diagnose why using the "
+        "context below, then take exactly ONE of these three actions.",
+        "",
+        "1. STALE LOCATOR: the element still exists and means the same thing, "
+        "just found differently now (e.g. a renamed CSS class/attribute). Fix "
+        "ONLY the Page Object locator method. Do not touch the feature file or "
+        "step definition.",
+        "",
+        "2. DOCUMENTED REQUIREMENT CHANGE: the DOM snapshot and the Jira ticket "
+        "below together show a genuinely NEW requirement (e.g. a new mandatory "
+        "field) that this existing test doesn't account for. Only take this "
+        "path if the Jira context is marked 'EXACT MATCH for the PR under "
+        "test' AND its acceptance criteria clearly and specifically justify "
+        "THIS failing flow - a vague, unrelated, or best-effort/unmatched Jira "
+        "ticket is NOT sufficient justification. If justified, update "
+        "whichever of the feature file / step definition / Page Object are "
+        "needed to satisfy the new requirement.",
+        "",
+        f"3. UNCLEAR / POSSIBLE REGRESSION: neither of the above applies. Make "
+        f"NO file changes at all - this may be a genuine bug, and a human "
+        f"needs to triage it. End your entire response with exactly this line "
+        f"and nothing after it: {NO_FIX_MARKER}",
         "",
         f"Feature file: {failure['feature_uri']}",
         f"Scenario: {failure['scenario_name']}",
@@ -157,18 +225,20 @@ def build_prompt(failure, dom_html, pr_ctx, jira_ctx):
         "",
     ]
     if pr_ctx:
+        label = "EXACT MATCH for the PR under test" if pr_exact else \
+            "best-effort - most recent PR on record, NOT confirmed related to this failure"
         lines += [
-            f"Most recent PR on record (#{pr_ctx['pr_number']}: {pr_ctx['title']}) - "
-            "may or may not be what caused this specific breakage, but is the most "
-            "recent known code change:",
+            f"PR context ({label}) - #{pr_ctx['pr_number']}: {pr_ctx['title']}",
             "```diff",
             pr_ctx["diff"],
             "```",
             "",
         ]
     if jira_ctx:
+        label = "EXACT MATCH for the PR under test" if jira_exact else \
+            "best-effort - most recent Jira ticket on record, NOT confirmed related to this failure"
         lines += [
-            f"Most recent linked Jira ticket ({jira_ctx['jira_key']}): {jira_ctx['summary']}",
+            f"Jira context ({label}) - {jira_ctx['jira_key']}: {jira_ctx['summary']}",
             f"Description: {jira_ctx['description']}",
             f"Acceptance criteria: {jira_ctx['acceptance_criteria']}",
             "",
@@ -186,18 +256,19 @@ def run_aider(prompt_text, files_to_edit):
     cmd = [
         "aider", "--model", model, "--message-file", str(prompt_file),
         "--yes-always", "--no-check-update", "--no-detect-urls",
-        # The repo-map (a survey of all 113 files) is unnecessary for a fix
-        # scoped to two known files, and GitHub Models' free tier has an
-        # ~8000 token request cap that doesn't leave room for it.
+        # The repo-map (a survey of all 113 files) is unnecessary given the
+        # files are already named explicitly, and GitHub Models' free tier
+        # has an ~8000 token request cap that doesn't leave room for it.
         "--map-tokens", "0",
     ]
     cmd += [str(f) for f in files_to_edit]
 
     print("Running:", " ".join(cmd))
     result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=600)
-    print(result.stdout[-4000:])
+    output = result.stdout[-4000:]
+    print(output)
     print(result.stderr[-2000:])
-    return result.returncode == 0
+    return result.returncode == 0, output
 
 
 def has_any_failed_steps():
@@ -213,14 +284,50 @@ def has_any_failed_steps():
     )
 
 
-def verify_scenario(scenario_name):
-    cmd = [
-        "mvn", "-B", "-q", "test",
-        f"-Dcucumber.filter.name={re.escape(scenario_name)}",
-        "-Dheadless=true",
-    ]
-    subprocess.run(cmd, cwd=PLAYWRIGHT_DIR, capture_output=True, text=True, timeout=300)
+def verify_feature(feature_path):
+    # Whole feature file, not just the one scenario - path 2 fixes can touch
+    # step definitions/Page Object methods shared by other scenarios in it.
+    rel = feature_path.relative_to(PLAYWRIGHT_DIR).as_posix()
+    cmd = ["mvn", "-B", "-q", "test", f"-Dcucumber.features={rel}", "-Dheadless=true"]
+    subprocess.run(cmd, cwd=PLAYWRIGHT_DIR, capture_output=True, text=True, timeout=600)
     return not has_any_failed_steps()
+
+
+def git_head():
+    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True)
+    return result.stdout.strip()
+
+
+def git_reset_hard(sha):
+    subprocess.run(["git", "reset", "--hard", sha], cwd=REPO_ROOT, capture_output=True, text=True)
+
+
+def open_github_issue(failure, aider_output):
+    title = f"Self-heal: needs triage - {failure['scenario_name']}"
+    body_lines = [
+        "`self-heal-locators.yml` found this failure but could not confidently "
+        "auto-fix it (or an attempted fix didn't verify) - flagging for human "
+        "review since it doesn't look like a simple stale locator and there's "
+        "no clear documented requirement change justifying it.",
+        "",
+        f"**Feature file:** {failure['feature_uri']}",
+        f"**Scenario:** {failure['scenario_name']}",
+        f"**Failing step:** {failure['step_text']}",
+        "",
+        "**Error:**",
+        "```",
+        failure["error_message"][:2000],
+        "```",
+    ]
+    if aider_output:
+        body_lines += ["", "**Aider's diagnosis:**", "```", aider_output[-2000:], "```"]
+    body_file = Path("/tmp/self-heal-issue-body.md")
+    body_file.write_text("\n".join(body_lines))
+    result = subprocess.run(
+        ["gh", "issue", "create", "--title", title, "--body-file", str(body_file)],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+    print(result.stdout, result.stderr)
 
 
 def main():
@@ -231,35 +338,53 @@ def main():
         return 0
 
     print(f"Found {len(failures)} locator-class failure(s).")
-    pr_ctx = recent_pr_context()
-    jira_ctx = recent_jira_context()
+    pr_number = os.environ.get("PR_NUMBER") or None
+    pr_ctx, pr_exact = pr_context(pr_number)
+    jira_ctx, jira_exact = jira_context(pr_number)
+    print(f"PR context: {'exact match' if pr_exact else 'best-effort'}; "
+          f"Jira context: {'exact match' if jira_exact else 'best-effort'}")
 
     summary_lines = ["# Self-Heal Locators - Summary", ""]
 
     for failure in failures:
         page_object = infer_page_object(failure["step_def_class"])
-        common_page = PAGE_OBJECT_DIR / "CommonPage.java"
-        files_to_edit = [f for f in [page_object, common_page] if f]
-
-        if not files_to_edit:
+        if not page_object:
             summary_lines.append(
                 f"- **{failure['scenario_name']}**: could not infer a Page Object "
                 f"class from step definition `{failure['step_def_class']}`; skipped."
             )
             continue
 
+        common_page = PAGE_OBJECT_DIR / "CommonPage.java"
+        step_def = step_def_file(failure["step_def_class"])
+        feature_path = feature_file_path(failure["feature_uri"])
+        files_to_edit = [f for f in [page_object, common_page, step_def, feature_path] if f]
+
         dom_html = dom_snapshot_for(failure["scenario_name"])
-        prompt = build_prompt(failure, dom_html, pr_ctx, jira_ctx)
+        prompt = build_prompt(failure, dom_html, pr_ctx, pr_exact, jira_ctx, jira_exact)
 
         print(f"\n=== Healing: {failure['scenario_name']} ===")
-        if not run_aider(prompt, files_to_edit):
+        pre_attempt_sha = git_head()
+        ok, aider_output = run_aider(prompt, files_to_edit)
+        if not ok:
             summary_lines.append(f"- **{failure['scenario_name']}**: Aider run errored; no fix applied.")
             continue
 
-        verified = verify_scenario(failure["scenario_name"])
-        status = "VERIFIED - scenario now passes" if verified else "UNVERIFIED - still failing after the attempted fix"
-        edited = ", ".join(f.name for f in files_to_edit)
-        summary_lines.append(f"- **{failure['scenario_name']}** ({status}): edited {edited}")
+        if git_head() == pre_attempt_sha:
+            print("No changes made - flagging for human triage.")
+            open_github_issue(failure, aider_output)
+            summary_lines.append(f"- **{failure['scenario_name']}**: no confident fix - opened a GitHub issue for triage.")
+            continue
+
+        verified = verify_feature(feature_path) if feature_path else False
+        if verified:
+            edited = ", ".join(f.name for f in files_to_edit if f.exists())
+            summary_lines.append(f"- **{failure['scenario_name']}** (VERIFIED - feature file now passes): edited {edited}")
+        else:
+            print("Fix did not verify - reverting and flagging for human triage.")
+            git_reset_hard(pre_attempt_sha)
+            open_github_issue(failure, aider_output)
+            summary_lines.append(f"- **{failure['scenario_name']}**: attempted fix did not verify, reverted - opened a GitHub issue for triage.")
 
     SUMMARY_PATH.write_text("\n".join(summary_lines) + "\n")
     return 0
