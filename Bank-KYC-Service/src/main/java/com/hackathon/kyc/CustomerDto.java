@@ -5,6 +5,7 @@ public record CustomerDto(
         String name,
         String mobile,
         String email,
+        String panNumber,
         String status,
         String kycStatus
 ) {

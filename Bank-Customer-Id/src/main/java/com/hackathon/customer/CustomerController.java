@@ -15,11 +15,14 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
 
 @CrossOrigin
 @RestController
 @RequestMapping("/customer")
 public class CustomerController {
+    private static final Pattern PAN_PATTERN = Pattern.compile("^[A-Z]{5}[0-9]{4}[A-Z]{1}$");
+
     private final CustomerRepository repository;
 
     public CustomerController(CustomerRepository repository) {
@@ -29,8 +32,9 @@ public class CustomerController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Customer createCustomer(@RequestBody CustomerRequest request) {
-        validateCustomer(request);
-        return repository.save(new Customer(request, nextCustomerId()));
+        CustomerRequest normalized = normalizePan(request);
+        validateCustomer(normalized);
+        return repository.save(new Customer(normalized, nextCustomerId()));
     }
 
     @GetMapping("/all")
@@ -98,5 +102,17 @@ public class CustomerController {
         if (request.governmentId() == null || request.governmentId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Government ID is required");
         }
+        if (request.panNumber() == null || request.panNumber().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PAN number is required");
+        }
+        if (!PAN_PATTERN.matcher(request.panNumber()).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PAN number must match format AAAAA9999A");
+        }
+    }
+
+    private CustomerRequest normalizePan(CustomerRequest request) {
+        String pan = request.panNumber() == null ? null : request.panNumber().trim().toUpperCase();
+        return new CustomerRequest(request.name(), request.mobile(), request.email(), request.dateOfBirth(),
+                request.nationality(), request.address(), request.mailingAddress(), request.governmentId(), pan);
     }
 }
