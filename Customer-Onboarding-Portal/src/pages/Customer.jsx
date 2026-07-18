@@ -36,6 +36,7 @@ export default function Customer() {
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
+    email: '',
     dateOfBirth: '',
     nationality: '',
     address: '',
@@ -84,6 +85,7 @@ export default function Customer() {
       setFormData({
         name: '',
         mobile: '',
+        email: '',
         dateOfBirth: '',
         nationality: '',
         address: '',
@@ -164,6 +166,17 @@ export default function Customer() {
                 value={formData.mobile}
                 onChange={handleInputChange}
                 placeholder="9876543210"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                placeholder="john.doe@example.com"
               />
             </Grid>
             <Grid item xs={12}>
