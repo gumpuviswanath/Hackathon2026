@@ -5,7 +5,7 @@ Feature: KYC Verification
     When User enters username "admin" and password "beyond123"
     And User clicks on the login button
     Then User should be logged in successfully
-    And User registers a new customer with name "Bob Kumar" mobile "9876500002" and government id "AADHAR500002"
+    And User registers a new customer with name "Bob Kumar" mobile "9876500002" government id "AADHAR500002" and email "bob.kumar@example.com"
     And User navigates to the KYC module
 
   Scenario: Verify KYC Verification page loads correctly
