@@ -1,0 +1,112 @@
+name: Regression Suite (Login + Customer)
+
+# Manual only - runs just the @regression-tagged scenarios (login.feature and
+# customer.feature) instead of the full Cucumber/Playwright suite. Only the
+# Customer service backend and the portal are started since those are the
+# only two features under test.
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Customer service
+        run: mvn -B -pl Bank-Customer-Id -am clean package -DskipTests
+
+      - name: Start Customer service
+        run: |
+          (cd Bank-Customer-Id && nohup java -jar target/customer-service-*.jar > "$GITHUB_WORKSPACE/customer-service.log" 2>&1 &)
+
+      - name: Wait for Customer service
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/customer/all --max-time 2 || true)
+            [ "$code" = "200" ] && { echo "Customer service is up."; exit 0; }
+            echo "Waiting for Customer service ($i/30)..."
+            sleep 3
+          done
+          echo "::error::Customer service did not become ready in time."
+          exit 1
+
+      - name: Install frontend dependencies
+        working-directory: Customer-Onboarding-Portal
+        run: npm ci
+
+      - name: Start frontend (portal)
+        working-directory: Customer-Onboarding-Portal
+        run: nohup npm start > "$GITHUB_WORKSPACE/portal.log" 2>&1 &
+
+      - name: Wait for frontend
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3005 --max-time 2 || true)
+            [ "$code" = "200" ] && { echo "Portal is up."; exit 0; }
+            echo "Waiting for portal ($i/20)..."
+            sleep 3
+          done
+          echo "::error::Portal did not become ready in time."
+          exit 1
+
+      - name: Install Playwright browsers
+        working-directory: Playwright-Testing
+        run: |
+          mvn -B -q test-compile dependency:build-classpath -Dmdep.outputFile=cp.txt
+          java -cp "target/classes:target/test-classes:$(cat cp.txt)" com.microsoft.playwright.CLI install --with-deps chromium
+
+      - name: Run @regression Cucumber/Playwright scenarios
+        working-directory: Playwright-Testing
+        run: mvn -B test -Dheadless=true -Dcucumber.filter.tags="@regression"
+
+      # surefire has testFailureIgnore=true (so a broken scenario doesn't abort the
+      # whole run before the report is generated), which means the mvn step above
+      # always exits 0 - without this check the job would always report "success"
+      # even when scenarios genuinely failed.
+      - name: Fail the job if any Cucumber steps failed
+        if: always()
+        working-directory: Playwright-Testing
+        run: |
+          if [ ! -f target/cucumber-reports/cucumber.json ]; then
+            echo "::error::cucumber.json not found - the test run likely failed before producing results."
+            exit 1
+          fi
+          FAILED=$(jq '[.[].elements[]?.steps[]? | select(.result.status == "failed")] | length' target/cucumber-reports/cucumber.json)
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED Cucumber step(s) failed."
+            exit 1
+          fi
+          echo "All Cucumber steps passed."
+
+      - name: Show backend/portal logs on failure
+        if: failure()
+        run: |
+          for f in customer-service portal; do
+            echo "::group::$f.log"
+            tail -100 "$GITHUB_WORKSPACE/$f.log" 2>/dev/null || echo "(no log)"
+            echo "::endgroup::"
+          done
+
+      - name: Upload Extent report as build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-extent-report
+          path: Playwright-Testing/target/ExtentReport/
+          if-no-files-found: warn

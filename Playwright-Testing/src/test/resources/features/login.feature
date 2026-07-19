@@ -1,3 +1,4 @@
+@regression
 Feature: Login to Beyond Banking Staff Portal
 
   Scenario: Successful login with valid credentials
