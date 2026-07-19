@@ -70,6 +70,15 @@ public class Hooks {
 
 	    // Log completion of the test scenario
 	    System.out.println("✅ Scenario Completed: " + scenario.getName());
+
+	    // @Before creates a fresh Playwright/Browser/Context/Page per scenario, so
+	    // close them here too - otherwise every scenario leaks a browser process
+	    // that only gets torn down at JVM exit, piling up dozens of dangling
+	    // Chromium instances by the end of a full suite run.
+	    page.close();
+	    context.close();
+	    browser.close();
+	    playwright.close();
 	}
 
 	public static BrowserContext getContext() {

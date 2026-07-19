@@ -179,7 +179,7 @@ jobs:
         working-directory: Playwright-Testing
         run: |
           mvn -B -q test-compile dependency:build-classpath -Dmdep.outputFile=cp.txt
-          java -cp "target/classes:target/test-classes:$(cat cp.txt)" com.microsoft.playwright.CLI install --with-deps chromium
+          sudo env "PATH=$PATH" java -cp "target/classes:target/test-classes:$(cat cp.txt)" com.microsoft.playwright.CLI install --with-deps chromium
 
       - name: Create a branch for the self-heal attempt
         if: steps.scan.outputs.count != '0'
