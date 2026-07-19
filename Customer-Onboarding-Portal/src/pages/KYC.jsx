@@ -41,13 +41,14 @@ const KycTable = ({ customers, kycDetailsByCustomer, onApprove, onReject, loadin
           <TableCell><strong>Name</strong></TableCell>
           <TableCell><strong>Mobile</strong></TableCell>
           <TableCell><strong>Email</strong></TableCell>
+          <TableCell><strong>PAN</strong></TableCell>
           <TableCell align="center"><strong>Actions</strong></TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
         {customers.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+            <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
               No customers in this category
             </TableCell>
           </TableRow>
@@ -78,6 +79,7 @@ const KycTable = ({ customers, kycDetailsByCustomer, onApprove, onReject, loadin
                 </TableCell>
                 <TableCell>{customer.mobile}</TableCell>
                 <TableCell>{customer.email}</TableCell>
+                <TableCell>{customer.panNumber || '—'}</TableCell>
                 <TableCell align="center">
                   {customer.kycStatus === 'Pending' && (
                     <>

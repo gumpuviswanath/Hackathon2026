@@ -10,6 +10,7 @@ public record CustomerRequest(
         String nationality,
         String address,
         String mailingAddress,
-        String governmentId
+        String governmentId,
+        String panNumber
 ) {
 }

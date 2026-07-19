@@ -35,12 +35,17 @@ public class CustomerPage extends CommonPage {
 		dialog().getByLabel("Nationality/Citizenship").fill(nationality);
 	}
 
-	// Fills the mandatory fields only (name, mobile, government id, email) - enough for a demo registration
-	public void fillMandatoryFields(String name, String mobile, String governmentId, String email) {
+	// Fills the mandatory fields only (name, mobile, government id, email, PAN) - enough for a demo registration
+	public void fillMandatoryFields(String name, String mobile, String governmentId, String email, String panNumber) {
 		enterFullName(name);
 		enterMobile(mobile);
 		enterGovernmentId(governmentId);
 		enterEmail(email);
+		enterPanNumber(panNumber);
+	}
+
+	public void enterPanNumber(String panNumber) {
+		dialog().getByLabel("PAN Number *").fill(panNumber);
 	}
 
 	public void enterEmail(String email) {

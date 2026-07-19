@@ -41,7 +41,8 @@ export default function Customer() {
     nationality: '',
     address: '',
     mailingAddress: '',
-    governmentId: ''
+    governmentId: '',
+    panNumber: ''
   })
 
   useEffect(() => {
@@ -60,17 +61,23 @@ export default function Customer() {
     }
   }
 
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'panNumber' ? value.toUpperCase() : value
     }))
   }
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.mobile || !formData.email || !formData.governmentId) {
+    if (!formData.name || !formData.mobile || !formData.email || !formData.governmentId || !formData.panNumber) {
       setError('Please fill all required fields')
+      return
+    }
+    if (!PAN_REGEX.test(formData.panNumber)) {
+      setError('PAN Number must be in the format AAAAA9999A')
       return
     }
 
@@ -90,7 +97,8 @@ export default function Customer() {
         nationality: '',
         address: '',
         mailingAddress: '',
-        governmentId: ''
+        governmentId: '',
+        panNumber: ''
       })
       setSameAsResidential(false)
       setOpenDialog(false)
@@ -243,6 +251,18 @@ export default function Customer() {
                 placeholder="AADHAR123456"
               />
             </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="PAN Number *"
+                name="panNumber"
+                value={formData.panNumber}
+                onChange={handleInputChange}
+                placeholder="ABCDE1234F"
+                inputProps={{ maxLength: 10 }}
+                helperText="Format: AAAAA9999A"
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -266,6 +286,7 @@ export default function Customer() {
                 <TableCell><strong>Customer ID</strong></TableCell>
                 <TableCell><strong>Name</strong></TableCell>
                 <TableCell><strong>Mobile</strong></TableCell>
+                <TableCell><strong>PAN</strong></TableCell>
                 <TableCell><strong>Nationality</strong></TableCell>
                 <TableCell><strong>KYC Status</strong></TableCell>
                 <TableCell><strong>Overall Status</strong></TableCell>
@@ -274,7 +295,7 @@ export default function Customer() {
             <TableBody>
               {customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                     No customers registered yet
                   </TableCell>
                 </TableRow>
@@ -284,6 +305,7 @@ export default function Customer() {
                     <TableCell sx={{ fontSize: '0.9rem' }}>{customer.customerId}</TableCell>
                     <TableCell>{customer.name}</TableCell>
                     <TableCell>{customer.mobile}</TableCell>
+                    <TableCell>{customer.panNumber || '—'}</TableCell>
                     <TableCell>{customer.nationality}</TableCell>
                     <TableCell>
                       <Chip
