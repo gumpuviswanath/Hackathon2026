@@ -160,7 +160,9 @@ jobs:
 
   deploy:
     needs: test
-    if: always()
+    # github-pages environment protection rules only allow main to deploy;
+    # skip this job on other branches instead of failing red.
+    if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write
