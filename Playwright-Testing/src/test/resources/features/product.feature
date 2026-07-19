@@ -7,7 +7,7 @@ Feature: Product Management
     Then User should be logged in successfully
 
   Scenario: Verify Product Management page loads correctly
-    Given User registers a new customer with name "David Singh" mobile "9876500007" and government id "AADHAR500007"
+    Given User registers a new customer with name "David Singh" mobile "9876500007" government id "AADHAR500007" email "david.singh@example.com" and pan number "ABCDE1234L"
     And User approves the KYC for customer with mobile "9876500007" providing reviewer "Jane Smith" channel "Branch" and documents "Passport (verified)"
     And User opens an account for customer with mobile "9876500007" with type "Savings" branch "MG Road Branch" currency "INR"
     And User navigates to the Product module
@@ -15,7 +15,7 @@ Feature: Product Management
     And the newly opened account should be listed under Apply for Products
 
   Scenario: Successfully apply for a Personal Loan product
-    Given User registers a new customer with name "Grace Lee" mobile "9876500008" and government id "AADHAR500008"
+    Given User registers a new customer with name "Grace Lee" mobile "9876500008" government id "AADHAR500008" email "grace.lee@example.com" and pan number "ABCDE1234M"
     And User approves the KYC for customer with mobile "9876500008" providing reviewer "Jane Smith" channel "Branch" and documents "Passport (verified)"
     And User opens an account for customer with mobile "9876500008" with type "Savings" branch "MG Road Branch" currency "INR"
     And User navigates to the Product module
@@ -24,7 +24,7 @@ Feature: Product Management
     And the new product application should appear under the "Loans" tab
 
   Scenario: Successfully apply for a Credit Card product
-    Given User registers a new customer with name "Henry Ford" mobile "9876500009" and government id "AADHAR500009"
+    Given User registers a new customer with name "Henry Ford" mobile "9876500009" government id "AADHAR500009" email "henry.ford@example.com" and pan number "ABCDE1234N"
     And User approves the KYC for customer with mobile "9876500009" providing reviewer "Jane Smith" channel "Branch" and documents "Passport (verified)"
     And User opens an account for customer with mobile "9876500009" with type "Savings" branch "MG Road Branch" currency "INR"
     And User navigates to the Product module
