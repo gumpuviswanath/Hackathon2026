@@ -36,13 +36,10 @@ export default function Customer() {
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
-    email: '',
     dateOfBirth: '',
-    nationality: '',
     address: '',
     mailingAddress: '',
-    governmentId: '',
-    panNumber: ''
+    governmentId: ''
   })
 
   useEffect(() => {
@@ -61,23 +58,17 @@ export default function Customer() {
     }
   }
 
-  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'panNumber' ? value.toUpperCase() : value
+      [name]: value
     }))
   }
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.mobile || !formData.email || !formData.governmentId || !formData.panNumber) {
+    if (!formData.name || !formData.mobile || !formData.governmentId) {
       setError('Please fill all required fields')
-      return
-    }
-    if (!PAN_REGEX.test(formData.panNumber)) {
-      setError('PAN Number must be in the format AAAAA9999A')
       return
     }
 
@@ -92,13 +83,10 @@ export default function Customer() {
       setFormData({
         name: '',
         mobile: '',
-        email: '',
         dateOfBirth: '',
-        nationality: '',
         address: '',
         mailingAddress: '',
-        governmentId: '',
-        panNumber: ''
+        governmentId: ''
       })
       setSameAsResidential(false)
       setOpenDialog(false)
@@ -179,33 +167,12 @@ export default function Customer() {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Email *"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="john.doe@example.com"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
                 label="Date of Birth"
                 name="dateOfBirth"
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={handleInputChange}
                 InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Nationality/Citizenship"
-                name="nationality"
-                value={formData.nationality}
-                onChange={handleInputChange}
-                placeholder="Indian"
               />
             </Grid>
             <Grid item xs={12}>
@@ -251,18 +218,6 @@ export default function Customer() {
                 placeholder="AADHAR123456"
               />
             </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="PAN Number *"
-                name="panNumber"
-                value={formData.panNumber}
-                onChange={handleInputChange}
-                placeholder="ABCDE1234F"
-                inputProps={{ maxLength: 10 }}
-                helperText="Format: AAAAA9999A"
-              />
-            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -286,8 +241,6 @@ export default function Customer() {
                 <TableCell><strong>Customer ID</strong></TableCell>
                 <TableCell><strong>Name</strong></TableCell>
                 <TableCell><strong>Mobile</strong></TableCell>
-                <TableCell><strong>PAN</strong></TableCell>
-                <TableCell><strong>Nationality</strong></TableCell>
                 <TableCell><strong>KYC Status</strong></TableCell>
                 <TableCell><strong>Overall Status</strong></TableCell>
               </TableRow>
@@ -295,7 +248,7 @@ export default function Customer() {
             <TableBody>
               {customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
                     No customers registered yet
                   </TableCell>
                 </TableRow>
@@ -305,8 +258,6 @@ export default function Customer() {
                     <TableCell sx={{ fontSize: '0.9rem' }}>{customer.customerId}</TableCell>
                     <TableCell>{customer.name}</TableCell>
                     <TableCell>{customer.mobile}</TableCell>
-                    <TableCell>{customer.panNumber || '—'}</TableCell>
-                    <TableCell>{customer.nationality}</TableCell>
                     <TableCell>
                       <Chip
                         label={customer.kycStatus}

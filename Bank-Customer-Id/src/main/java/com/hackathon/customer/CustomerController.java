@@ -102,10 +102,8 @@ public class CustomerController {
         if (request.governmentId() == null || request.governmentId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Government ID is required");
         }
-        if (request.panNumber() == null || request.panNumber().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PAN number is required");
-        }
-        if (!PAN_PATTERN.matcher(request.panNumber()).matches()) {
+        if (request.panNumber() != null && !request.panNumber().isBlank()
+                && !PAN_PATTERN.matcher(request.panNumber()).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PAN number must match format AAAAA9999A");
         }
     }

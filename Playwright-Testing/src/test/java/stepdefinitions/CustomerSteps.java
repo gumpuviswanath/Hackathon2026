@@ -30,9 +30,9 @@ public class CustomerSteps {
 		customer().openRegisterDialog();
 	}
 
-	@When("User enters customer details with name {string} mobile {string} government id {string} email {string} and pan number {string}")
-	public void user_enters_customer_details(String name, String mobile, String governmentId, String email, String panNumber) {
-		customer().fillMandatoryFields(name, mobile, governmentId, email, panNumber);
+	@When("User enters customer details with name {string} mobile {string} government id {string}")
+	public void user_enters_customer_details(String name, String mobile, String governmentId) {
+		customer().fillMandatoryFields(name, mobile, governmentId);
 	}
 
 	@When("User clicks on the Register button")
@@ -41,11 +41,11 @@ public class CustomerSteps {
 	}
 
 	// Convenience step reused as setup (Background) by the KYC, Account and Product features
-	@Given("User registers a new customer with name {string} mobile {string} government id {string} email {string} and pan number {string}")
-	public void user_registers_a_new_customer(String name, String mobile, String governmentId, String email, String panNumber) {
+	@Given("User registers a new customer with name {string} mobile {string} government id {string}")
+	public void user_registers_a_new_customer(String name, String mobile, String governmentId) {
 		customer().navigate();
 		customer().openRegisterDialog();
-		customer().fillMandatoryFields(name, mobile, governmentId, email, panNumber);
+		customer().fillMandatoryFields(name, mobile, governmentId);
 		customer().clickRegisterSubmit();
 		customer().verifySuccessMessageIsPresent("Customer registered successfully!");
 	}
